@@ -1,0 +1,11 @@
+services:
+  tunnelcraft:
+    build: .
+    ports:
+      - "4000:4000"
+    volumes:
+      - tunnelcraft-data:/app/server/data
+    restart: unless-stopped
+
+volumes:
+  tunnelcraft-data:
