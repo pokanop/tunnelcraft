@@ -2,13 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { Blocks, LayerGlyph, LayerTags } from "./lib/render";
 import { OrderEx, BlankEx, CidrTrainer, Checklist, Quiz } from "./components/exercises";
 import { MatchEx, PortDrill } from "./components/extra";
+import { HexEx, PcapEx, VlsmEx } from "./components/labs";
+import { ExamView } from "./components/exam";
+import { GlossaryView } from "./components/glossary";
 import { AuthView } from "./components/auth";
 import { AccountView } from "./components/account";
 import { SearchOverlay } from "./components/search";
 import { ReviewView } from "./components/review";
-import { recordMiss, recordReview, deckStats } from "./lib/review";
+import { recordMiss, recordMissCard, recordReview, deckStats } from "./lib/review";
+import type { MissFn } from "./lib/review";
 import { VerifyBanner } from "./components/verify";
 import { ALL_MODULES, TRACKS } from "./curriculum/tracks";
+import { EXAM_LEN, EXAM_MINUTES, EXAM_PASS } from "./lib/exam";
 import {
   api,
   ApiError,
@@ -20,7 +25,7 @@ import {
   saveLocal,
 } from "./lib/api";
 import type { PublicUser } from "./lib/api";
-import { emptyProgress } from "./lib/progress";
+import { emptyProgress, touchActivity } from "./lib/progress";
 import type { Progress } from "./lib/progress";
 import { useTheme } from "./lib/theme";
 import type { CheckExercise, Exercise, Lesson, Module } from "./curriculum/types";
@@ -31,6 +36,8 @@ export type Route =
   | { v: "auth" }
   | { v: "account" }
   | { v: "review" }
+  | { v: "glossary" }
+  | { v: "exam"; track: string }
   | { v: "mod"; id: string; tab?: string };
 
 type SyncState = "local" | "saving" | "synced" | "offline";
@@ -57,9 +64,10 @@ interface ExerciseViewProps {
   prog: Progress;
   exDone: (id: string) => void;
   capToggle: (ex: CheckExercise, i: number) => void;
+  miss: MissFn;
 }
 
-function ExerciseView({ ex, prog, exDone, capToggle }: ExerciseViewProps) {
+function ExerciseView({ ex, prog, exDone, capToggle, miss }: ExerciseViewProps) {
   const done = !!prog.ex[ex.id];
   const onDone = () => exDone(ex.id);
   switch (ex.type) {
@@ -68,16 +76,65 @@ function ExerciseView({ ex, prog, exDone, capToggle }: ExerciseViewProps) {
     case "blank":
       return <BlankEx ex={ex} done={done} onDone={onDone} />;
     case "cidr":
-      return <CidrTrainer ex={ex} done={done} onDone={onDone} />;
+      return <CidrTrainer ex={ex} done={done} onDone={onDone} miss={miss} />;
     case "match":
       return <MatchEx ex={ex} done={done} onDone={onDone} />;
     case "ports":
-      return <PortDrill ex={ex} done={done} onDone={onDone} />;
+      return <PortDrill ex={ex} done={done} onDone={onDone} miss={miss} />;
+    case "hex":
+      return <HexEx ex={ex} done={done} onDone={onDone} miss={miss} />;
+    case "pcap":
+      return <PcapEx ex={ex} done={done} onDone={onDone} miss={miss} />;
+    case "vlsm":
+      return <VlsmEx ex={ex} done={done} onDone={onDone} miss={miss} />;
     case "check":
       return <Checklist ex={ex} cap={prog.cap} done={done} onToggle={capToggle} />;
     default:
       return null;
   }
+}
+
+/* ---------- per-lesson field notes (debounced into the progress blob) ---------- */
+function LessonNotes({
+  lessonId,
+  note,
+  save,
+}: {
+  lessonId: string;
+  note: string;
+  save: (v: string) => void;
+}) {
+  const [val, setVal] = useState(note);
+  const [open, setOpen] = useState(note !== "");
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    setVal(note);
+    setOpen(note !== "");
+    return () => clearTimeout(timer.current);
+  }, [lessonId]);
+  const onChange = (v: string) => {
+    setVal(v);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => save(v), 600);
+  };
+  return (
+    <div className="notesbox">
+      <button className="notestoggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        ✎ FIELD NOTES {open ? "▾" : "▸"}
+        {!open && val.trim() ? <span className="notesdot" aria-hidden="true" /> : null}
+      </button>
+      {open && (
+        <textarea
+          className="notesarea"
+          placeholder="Your notes on this lesson — saved with your progress…"
+          value={val}
+          rows={4}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={() => save(val)}
+        />
+      )}
+    </div>
+  );
 }
 
 /* ---------- module view ---------- */
@@ -161,6 +218,27 @@ function ModuleView({ mod, prog, update, go, mIdx, initialTab }: ModuleViewProps
     update((p) => {
       recordMiss(p.rev, modId, qIndex);
     });
+  const drillMiss: MissFn = (key, q, src) =>
+    update((p) => {
+      recordMissCard(p.rev, key, q, src);
+    });
+  const markToggle = (lid: string) =>
+    update((p) => {
+      if (p.marks[lid]) delete p.marks[lid];
+      else p.marks[lid] = true;
+    });
+  const saveNote = (lid: string, v: string) =>
+    update((p) => {
+      if (v.trim()) p.notes[lid] = { v, t: Date.now() };
+      else delete p.notes[lid];
+    });
+
+  /* remember the exact spot for lesson-precise resume */
+  useEffect(() => {
+    update((p) => {
+      p.meta.last = mod.id + ":" + tab;
+    });
+  }, [mod.id, tab]);
 
   return (
     <div className="wrap">
@@ -198,10 +276,34 @@ function ModuleView({ mod, prog, update, go, mIdx, initialTab }: ModuleViewProps
       {curLesson && (
         <article className="lesson">
           <div className="lesson-est">
-            {curLesson.est} · lesson {tIdx + 1} of {mod.lessons.length}
+            <span>
+              {curLesson.est} · lesson {tIdx + 1} of {mod.lessons.length}
+            </span>
+            <span className="lesson-tools">
+              <button
+                className={"lessontool" + (prog.marks[curLesson.id] ? " markon" : "")}
+                onClick={() => markToggle(curLesson.id)}
+                aria-pressed={!!prog.marks[curLesson.id]}
+                title={prog.marks[curLesson.id] ? "Remove bookmark" : "Bookmark this lesson"}
+              >
+                {prog.marks[curLesson.id] ? "★ BOOKMARKED" : "☆ BOOKMARK"}
+              </button>
+              <button
+                className="lessontool"
+                onClick={() => window.print()}
+                title="Print or save this lesson as PDF"
+              >
+                ⎙ PRINT
+              </button>
+            </span>
           </div>
           <h3 className="lesson-ttl">{curLesson.title}</h3>
           <Blocks blocks={curLesson.blocks} />
+          <LessonNotes
+            lessonId={curLesson.id}
+            note={prog.notes[curLesson.id]?.v ?? ""}
+            save={(v) => saveNote(curLesson.id, v)}
+          />
           <div className="exrow">
             {prog.les[curLesson.id] ? (
               <button className="btn okbtn">✓ COMPLETED</button>
@@ -216,7 +318,14 @@ function ModuleView({ mod, prog, update, go, mIdx, initialTab }: ModuleViewProps
 
       {cur?.key === "lab" &&
         (mod.exercises ?? []).map((ex) => (
-          <ExerciseView key={ex.id} ex={ex} prog={prog} exDone={exDone} capToggle={capToggle} />
+          <ExerciseView
+            key={ex.id}
+            ex={ex}
+            prog={prog}
+            exDone={exDone}
+            capToggle={capToggle}
+            miss={drillMiss}
+          />
         ))}
 
       {cur?.key === "quiz" && (
@@ -267,16 +376,34 @@ function Home({ prog, go }: { prog: Progress; go: (r: Route) => void }) {
     { total: 0, done: 0, lessons: 0, labs: 0, quizzes: 0 }
   );
 
-  const firstIncomplete = (): string => {
+  /* Lesson-precise resume: last visited spot if we have one, else the first
+     incomplete unit (lesson → lab → quiz) of the first incomplete module. */
+  const resumeTarget = (): { id: string; tab?: string } => {
+    const last = prog.meta.last;
+    if (last) {
+      const [mid, tab] = last.split(":");
+      if (mid && byId[mid]) return tab ? { id: mid, tab } : { id: mid };
+    }
     for (const m of ALL_MODULES) {
       const s = modStats(m, prog);
-      if (s.done < s.total) return m.id;
+      if (s.done < s.total) {
+        const les = m.lessons.find((l) => !prog.les[l.id]);
+        if (les) return { id: m.id, tab: les.id };
+        if ((m.exercises ?? []).some((e) => !prog.ex[e.id])) return { id: m.id, tab: "lab" };
+        return { id: m.id, tab: "quiz" };
+      }
     }
     // The curriculum is never empty.
-    return ALL_MODULES[0]!.id;
+    return { id: ALL_MODULES[0]!.id };
   };
   const started = totals.done > 0;
   const finished = totals.done >= totals.total;
+  const streak = prog.meta.streak ?? 0;
+  const deck = deckStats(prog.rev);
+  const finalsPassed = TRACKS.filter((t) => (prog.meta.finals?.[t.id] ?? 0) >= EXAM_PASS).length;
+  const marked: { mod: Module; lesson: Lesson }[] = [];
+  for (const m of ALL_MODULES)
+    for (const l of m.lessons) if (prog.marks[l.id]) marked.push({ mod: m, lesson: l });
 
   return (
     <div className="wrap">
@@ -297,7 +424,7 @@ function Home({ prog, go }: { prog: Progress; go: (r: Route) => void }) {
           <span className="hs h2s">← 02 HANDSHAKE RESPONSE</span>
           <span className="hs h3s">03 TRANSPORT DATA ⇄</span>
         </div>
-        <button className="btn" onClick={() => go({ v: "mod", id: firstIncomplete() })}>
+        <button className="btn" onClick={() => go({ v: "mod", ...resumeTarget() })}>
           {finished ? "REVISIT THE MAP" : started ? "RESUME TRAINING →" : "BEGIN TRANSMISSION →"}
         </button>
         <div className="stats" style={{ marginTop: 28 }}>
@@ -324,6 +451,60 @@ function Home({ prog, go }: { prog: Progress; go: (r: Route) => void }) {
         </div>
       </section>
 
+      {started && (
+        <section className="fieldrec">
+          <p className="gridttl">// FIELD RECORD</p>
+          <div className="stats">
+            <div className="stat">
+              <b>{streak > 0 ? "⚡" + streak : "—"}</b>
+              <span>day streak</span>
+            </div>
+            <div className="stat">
+              <b>{prog.meta.bestStreak ?? 0}</b>
+              <span>best streak</span>
+            </div>
+            <div className="stat">
+              <b>{deck.due}</b>
+              <span>cards due</span>
+            </div>
+            <div className="stat">
+              <b>{deck.total}</b>
+              <span>review deck</span>
+            </div>
+            <div className="stat">
+              <b>
+                {finalsPassed}/{TRACKS.length}
+              </b>
+              <span>finals passed</span>
+            </div>
+          </div>
+          {deck.due > 0 && (
+            <button className="btn ghost fieldrec-btn" onClick={() => go({ v: "review" })}>
+              CLEAR {deck.due} DUE CARD{deck.due > 1 ? "S" : ""} →
+            </button>
+          )}
+        </section>
+      )}
+
+      {marked.length > 0 && (
+        <section className="bookmarks">
+          <p className="gridttl">// BOOKMARKED LESSONS</p>
+          <div className="marklist">
+            {marked.map(({ mod, lesson }) => (
+              <button
+                key={lesson.id}
+                className="markrow"
+                onClick={() => go({ v: "mod", id: mod.id, tab: lesson.id })}
+              >
+                <span className="markcode">{mod.code}</span>
+                <span className="markttl">{lesson.title}</span>
+                <span className="markest">{lesson.est}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {TRACKS.map((tr) => {
         const mods = tr.modules.flatMap((id) => byId[id] ?? []);
         const t = mods.reduce(
@@ -336,6 +517,8 @@ function Home({ prog, go }: { prog: Progress; go: (r: Route) => void }) {
           { t: 0, d: 0 }
         );
         const tpct = t.t ? Math.round((t.d / t.t) * 100) : 0;
+        const final = prog.meta.finals?.[tr.id];
+        const certified = final !== undefined && final >= EXAM_PASS;
         return (
           <section key={tr.id} className="trackblock">
             <div className="trackhead">
@@ -346,6 +529,24 @@ function Home({ prog, go }: { prog: Progress; go: (r: Route) => void }) {
                 <p className="trackblurb">{tr.blurb}</p>
               </div>
               <div className="trackpct">{tpct}%</div>
+            </div>
+            <div className="trackexam">
+              <span className="trackexam-t">
+                FINAL EXAM · {EXAM_LEN} QUESTIONS · {EXAM_MINUTES} MIN · PASS {EXAM_PASS}%
+              </span>
+              <span className={"trackexam-s" + (certified ? " certok" : "")}>
+                {certified
+                  ? "✓ CERTIFIED — BEST " + final + "%"
+                  : final !== undefined
+                    ? "BEST " + final + "%"
+                    : "NOT ATTEMPTED"}
+              </span>
+              <button
+                className="btn ghost trackexam-btn"
+                onClick={() => go({ v: "exam", track: tr.id })}
+              >
+                {certified ? "RETAKE →" : final !== undefined ? "TRY AGAIN →" : "SIT THE EXAM →"}
+              </button>
             </div>
             <div className="grid">
               {mods.map((m) => {
@@ -452,6 +653,7 @@ export default function App() {
       // Deep-clone of our own JSON-serializable state.
       const next = JSON.parse(JSON.stringify(old)) as Progress;
       fn(next);
+      touchActivity(next.meta); // any progress write counts toward the daily streak
       saveLocal(next);
       return next;
     });
@@ -592,6 +794,27 @@ export default function App() {
               )}
             </button>
             <button
+              className="acct"
+              onClick={() => go({ v: "glossary" })}
+              aria-label="Field glossary"
+            >
+              GLOSSARY
+            </button>
+            {(prog.meta.streak ?? 0) > 0 && (
+              <span
+                className="streakchip"
+                title={
+                  "Daily streak: " +
+                  prog.meta.streak +
+                  " (best " +
+                  (prog.meta.bestStreak ?? prog.meta.streak) +
+                  ")"
+                }
+              >
+                ⚡{prog.meta.streak}
+              </span>
+            )}
+            <button
               className="acct themebtn"
               onClick={cycleTheme}
               title="Theme: cycles system → light → dark"
@@ -636,6 +859,14 @@ export default function App() {
         {route.v === "review" && (
           <ReviewView byId={byId} prog={prog} onAnswer={reviewAnswer} go={go} />
         )}
+        {route.v === "glossary" && <GlossaryView go={go} />}
+        {route.v === "exam" &&
+          (() => {
+            const track = TRACKS.find((t) => t.id === route.track);
+            return track ? (
+              <ExamView track={track} user={user} prog={prog} update={update} go={go} />
+            ) : null;
+          })()}
         {route.v === "mod" && curMod && (
           <ModuleView
             mod={curMod}

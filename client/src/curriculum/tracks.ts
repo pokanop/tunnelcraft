@@ -9,7 +9,9 @@ import { NET_D } from "./net-d";
 import { NET_V6T } from "./net-v6t";
 import { NET_CLOUD } from "./net-cloud";
 import { RUST_EXTRA } from "./rust-extra";
+import { RUST_FUTURE } from "./rust-future";
 import { RUST_IDIOM } from "./rust-idiom";
+import { RUST_UNSAFE } from "./rust-unsafe";
 import { PLATFORM_A } from "./platform-a";
 import { PLATFORM_B } from "./platform-b";
 import type { Module, Track } from "./types";
@@ -25,7 +27,9 @@ const POOL: Module[] = [
   ...NET_V6T,
   ...NET_CLOUD,
   ...RUST_EXTRA,
+  ...RUST_FUTURE,
   ...RUST_IDIOM,
+  ...RUST_UNSAFE,
   ...PLATFORM_A,
   ...PLATFORM_B,
 ];
@@ -54,11 +58,14 @@ const ORDER: string[] = [
   "n12",
   "n13",
   "n16",
-  // RUST track
+  // RUST track (r06=R04 futures-by-hand, r07=R06 unsafe/FFI/atomics —
+  // ids and codes are decoupled; codes renumbered when these were inserted)
   "m04",
   "r05",
   "m05",
+  "r06",
   "m06",
+  "r07",
   "r04",
   // TUNNEL track
   "m07",
@@ -115,8 +122,8 @@ export const TRACKS: Track[] = [
     code: "TRACK 2",
     title: "Rust for Systems",
     blurb:
-      "Idiomatic Rust first — ownership, type-driven design, error craft — then async Tokio, network programming, and the professional tooling that makes it shippable.",
-    modules: ["m04", "r05", "m05", "m06", "r04"],
+      "Idiomatic Rust first — ownership, type-driven design, error craft — then async Tokio, futures written by hand, network programming, unsafe & FFI with atomics, and the professional tooling that makes it shippable.",
+    modules: ["m04", "r05", "m05", "r06", "m06", "r07", "r04"],
   },
   {
     id: "tunnel",

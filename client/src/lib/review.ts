@@ -6,7 +6,7 @@
    Scheduling is Leitner-with-teeth (SM-2-lite): each box doubles the interval;
    a wrong answer sends the card back to box 0 (due now). */
 import type { Module, Question } from "../curriculum/types";
-import type { ReviewCard } from "./progress";
+import type { CardQuestion, ReviewCard } from "./progress";
 
 export const BOX_INTERVALS_DAYS = [0, 1, 3, 7, 21]; // box index → days until due
 
@@ -19,6 +19,21 @@ export function recordMiss(rev: Record<string, ReviewCard>, modId: string, qInde
   const k = cardKey(modId, qIndex);
   const prev = rev[k];
   rev[k] = { box: 0, due: Date.now(), misses: (prev ? prev.misses : 0) + 1 };
+}
+
+/** Callback shape components use to report a self-contained miss. */
+export type MissFn = (key: string, q: CardQuestion, src: string) => void;
+
+/* Self-contained miss (drills, exam-bank questions): the card embeds its own
+   question because it can't be resolved from a module quiz later. */
+export function recordMissCard(
+  rev: Record<string, ReviewCard>,
+  key: string,
+  q: CardQuestion,
+  src: string
+): void {
+  const prev = rev[key];
+  rev[key] = { box: 0, due: Date.now(), misses: (prev ? prev.misses : 0) + 1, q, src };
 }
 
 /* Called after a review answer. Right → promote a box and reschedule;
@@ -71,16 +86,25 @@ export function deckStats(
 }
 
 export interface ResolvedCard {
-  mod: Module;
   q: Question;
-  qIndex: number;
+  /** Source label for the review header, e.g. "N15 — DHCP…" or "PORT DRILL". */
+  src: string;
+  /** Present only for cards backed by a module quiz. */
+  mod?: Module;
+  qIndex?: number;
 }
 
-/* Resolve a card key back to its question via the module index. */
-export function resolveCard(byId: Record<string, Module>, key: string): ResolvedCard | null {
+/* Resolve a card back to its question: embedded payload first (drill/exam
+   cards), otherwise via the module index using the "modId:qIndex" key. */
+export function resolveCard(
+  byId: Record<string, Module>,
+  key: string,
+  card?: ReviewCard
+): ResolvedCard | null {
+  if (card?.q) return { q: card.q, src: card.src || "DRILL" };
   const [modId, qi] = key.split(":");
   if (modId === undefined || qi === undefined) return null;
   const mod = byId[modId];
   const q = mod?.quiz?.questions[Number(qi)];
-  return mod && q ? { mod, q, qIndex: Number(qi) } : null;
+  return mod && q ? { mod, q, qIndex: Number(qi), src: mod.code + " — " + mod.title } : null;
 }

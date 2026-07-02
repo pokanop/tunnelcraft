@@ -168,7 +168,8 @@ export const NET_CLOUD: Module[] = [
         type: "match",
         title: "Cloud symptom → first suspect",
         kind: "MATCH LAB",
-        prompt: "Each symptom names its layer and its cloud control. Match it to the professional's first check.",
+        prompt:
+          "Each symptom names its layer and its cloud control. Match it to the professional's first check.",
         pairs: [
           {
             t: "Instance in a private subnet can't reach the internet at all",

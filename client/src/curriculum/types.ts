@@ -11,6 +11,8 @@ export interface CodeSpec {
   lang: CodeLang;
   title?: string;
   body: string;
+  /** Self-contained runnable snippet — renders a "run on play.rust-lang.org" link (rust only). */
+  run?: boolean;
 }
 
 /** One renderable unit of lesson prose — a discriminated-by-key union. */
@@ -72,13 +74,54 @@ export interface PortsExercise extends ExerciseBase {
   type: "ports";
 }
 
+/** One question over a hex dump; span highlights bytes [start, end) while active. */
+export interface HexQuestion {
+  q: string;
+  opts: string[];
+  a: number;
+  span?: [number, number];
+  why: string;
+}
+
+/** Decode an authored packet hex dump byte by byte. */
+export interface HexExercise extends ExerciseBase {
+  type: "hex";
+  /** Hex byte pairs separated by whitespace; offsets start at 0. */
+  bytes: string;
+  questions: HexQuestion[];
+}
+
+export interface PcapPacket {
+  no: number;
+  time: string;
+  src: string;
+  dst: string;
+  proto: string;
+  info: string;
+}
+
+/** Wireshark-style packet list plus analysis questions. */
+export interface PcapExercise extends ExerciseBase {
+  type: "pcap";
+  packets: PcapPacket[];
+  questions: Question[];
+}
+
+/** Infinite generated VLSM subnet-design drill. */
+export interface VlsmExercise extends ExerciseBase {
+  type: "vlsm";
+}
+
 export type Exercise =
   | OrderExercise
   | MatchExercise
   | BlankExercise
   | CheckExercise
   | CidrExercise
-  | PortsExercise;
+  | PortsExercise
+  | HexExercise
+  | PcapExercise
+  | VlsmExercise;
 
 export interface Question {
   q: string;

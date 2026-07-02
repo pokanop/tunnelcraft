@@ -63,11 +63,40 @@ export function hl(code: string, lang: CodeLang): ReactNode[] | string {
   return out;
 }
 
-export function CodeBlock({ lang, body }: { lang: CodeLang; body: string }) {
+/** Rust Playground share link for self-contained snippets (CodeSpec.run). */
+export function playgroundUrl(body: string): string {
+  return (
+    "https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&code=" +
+    encodeURIComponent(body)
+  );
+}
+
+export function CodeBlock({
+  lang,
+  body,
+  run,
+}: {
+  lang: CodeLang;
+  body: string;
+  run?: boolean | undefined;
+}) {
   const label = lang === "sh" ? "shell" : lang === "text" ? "diagram" : lang;
   return (
     <div className="cb">
-      <div className="cb-lang">{label}</div>
+      <div className="cb-lang">
+        {label}
+        {run && lang === "rust" && (
+          <a
+            className="cb-run"
+            href={playgroundUrl(body)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Run this snippet on the Rust Playground (opens in a new tab)"
+          >
+            ▶ RUN ON PLAYGROUND
+          </a>
+        )}
+      </div>
       <pre>
         <code>{hl(body, lang)}</code>
       </pre>
@@ -92,7 +121,8 @@ export function Blocks({ blocks }: { blocks: Block[] }): ReactNode {
           ))}
         </ul>
       );
-    if ("code" in b) return <CodeBlock key={i} lang={b.code.lang} body={b.code.body} />;
+    if ("code" in b)
+      return <CodeBlock key={i} lang={b.code.lang} body={b.code.body} run={b.code.run} />;
     if ("note" in b)
       return (
         <div key={i} className="callout">

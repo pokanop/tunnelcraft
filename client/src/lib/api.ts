@@ -28,6 +28,8 @@ export interface PublicUser {
   email: string;
   displayName: string | null;
   emailVerified: boolean;
+  /** Opted in to study-reminder mail. */
+  remind?: boolean;
 }
 export interface AuthResponse {
   token: string;
@@ -113,6 +115,8 @@ export const api = {
     req<unknown>("/auth/reset-password", { method: "POST", body: { token, newPassword } }),
   deleteAccount: (password: string) =>
     req<unknown>("/account", { method: "DELETE", body: { password, confirm: "DELETE" } }),
+  setReminders: (on: boolean) =>
+    req<{ ok: boolean; remind: boolean }>("/account/reminders", { method: "POST", body: { on } }),
   getProgress: () => req<ProgressResponse>("/progress"),
   putProgress: (data: Progress) => req<unknown>("/progress", { method: "PUT", body: { data } }),
 };
@@ -139,19 +143,20 @@ export function mergeProgress(
   for (const k of new Set([...Object.keys(ra), ...Object.keys(rb)])) {
     const x = ra[k];
     const y = rb[k];
-    const merged: ReviewCard | undefined = !x
-      ? y
-      : !y
-        ? x
-        : x.box !== y.box
-          ? x.box < y.box
-            ? x
-            : y
-          : {
-              box: x.box,
-              due: Math.min(x.due, y.due),
-              misses: Math.max(x.misses || 0, y.misses || 0),
-            };
+    let merged: ReviewCard | undefined;
+    if (!x || !y) merged = x || y;
+    else if (x.box !== y.box) merged = x.box < y.box ? x : y;
+    else {
+      merged = {
+        box: x.box,
+        due: Math.min(x.due, y.due),
+        misses: Math.max(x.misses || 0, y.misses || 0),
+      };
+      const q = x.q ?? y.q;
+      const src = x.src ?? y.src;
+      if (q) merged.q = q;
+      if (src) merged.src = src;
+    }
     if (merged) out.rev[k] = merged;
   }
   // notes: newest edit wins per lesson

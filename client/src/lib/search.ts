@@ -79,6 +79,8 @@ function buildIndex(): SearchEntry[] {
         ...("items" in ex ? ex.items : []),
         ...("pairs" in ex ? ex.pairs.flatMap((p) => [p.t, p.d]) : []),
         ...("code" in ex ? [ex.code] : []),
+        ...("questions" in ex ? ex.questions.flatMap((q) => [q.q, q.why]) : []),
+        ...("packets" in ex ? ex.packets.map((p) => p.info) : []),
       ]
         .filter((s): s is string => Boolean(s))
         .join(" \n ");

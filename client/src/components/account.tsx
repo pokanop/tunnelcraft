@@ -20,6 +20,7 @@ export function AccountView({ user, onSignOut, onDeleted, onBack }: AccountViewP
   const [delPw, setDelPw] = useState("");
   const [delArm, setDelArm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [remind, setRemind] = useState(!!user.remind);
 
   const refresh = () =>
     api
@@ -166,6 +167,30 @@ export function AccountView({ user, onSignOut, onDeleted, onBack }: AccountViewP
           </div>
           <button className="btn" disabled={busy || newPw.length < 8} onClick={changePw}>
             UPDATE PASSWORD
+          </button>
+        </div>
+
+        <div className="acctsec">
+          <div className="acctsec-t">STUDY REMINDERS</div>
+          <p className="authsub">
+            Get one email on any day you haven't trained — streaks live and die by showing up.
+            {!user.emailVerified && " Verify your email above to enable."}
+          </p>
+          <button
+            className="btn ghost"
+            disabled={busy || !user.emailVerified}
+            aria-pressed={remind}
+            onClick={() =>
+              run(
+                async () => {
+                  const r = await api.setReminders(!remind);
+                  setRemind(r.remind);
+                },
+                remind ? "Reminders off" : "Reminders on — we'll nudge you on days with no activity"
+              )
+            }
+          >
+            {remind ? "● REMINDERS ON — TURN OFF" : "○ REMINDERS OFF — TURN ON"}
           </button>
         </div>
 

@@ -3,6 +3,7 @@ import { md } from "../lib/render";
 import { shuffle } from "./exercises";
 import { PORTS } from "../curriculum/tracks";
 import type { PortEntry } from "../curriculum/tracks";
+import type { MissFn } from "../lib/review";
 import type { MatchExercise, PortsExercise } from "../curriculum/types";
 
 /* ---------- MATCH: term → definition via shuffled selects ---------- */
@@ -90,9 +91,10 @@ interface PortDrillProps {
   ex: PortsExercise;
   done: boolean;
   onDone: () => void;
+  miss?: MissFn;
 }
 
-export function PortDrill({ ex, done, onDone }: PortDrillProps) {
+export function PortDrill({ ex, done, onDone, miss }: PortDrillProps) {
   const [prob, setProb] = useState<PortEntry>(() => pickPort(null));
   const [val, setVal] = useState("");
   const [state, setState] = useState<"ask" | "right" | "wrong">("ask");
@@ -105,6 +107,23 @@ export function PortDrill({ ex, done, onDone }: PortDrillProps) {
     const s = ok ? streak + 1 : 0;
     setStreak(s);
     if (s > best) setBest(s);
+    if (!ok && miss) {
+      const correct = String(prob.port);
+      const others = shuffle(PORTS.filter((p) => p.port !== prob.port))
+        .slice(0, 3)
+        .map((p) => String(p.port));
+      const opts = shuffle([correct, ...others]);
+      miss(
+        "drill:port:" + prob.port,
+        {
+          q: "Which default port does **" + prob.svc + "** use?",
+          opts,
+          a: opts.indexOf(correct),
+          why: prob.svc + " listens on port " + prob.port + " by default.",
+        },
+        "PORT DRILL"
+      );
+    }
     if (ok && !done) onDone();
   };
   const next = () => {

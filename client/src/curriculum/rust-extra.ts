@@ -5,7 +5,7 @@ import type { Module } from "./types";
 export const RUST_EXTRA: Module[] = [
   {
     id: "r04",
-    code: "R05",
+    code: "R07",
     title: "The Professional Rust Toolbelt",
     layers: ["RS"],
     est: "~55 min",

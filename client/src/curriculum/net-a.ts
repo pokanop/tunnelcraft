@@ -161,6 +161,73 @@ export const NET_A: Module[] = [
         ],
         why: "Routing decision → ARP → frame → switch. The same dance precedes nearly every 'first packet' on Ethernet; only the ARP target changes (host vs gateway).",
       },
+      {
+        id: "n02e_hex",
+        type: "hex",
+        title: "Read a raw Ethernet frame",
+        kind: "DECODE LAB",
+        prompt:
+          "Here are the first 20 bytes of a frame exactly as they left the wire: a 14-byte **Ethernet II header** followed by the start of the payload. Each question highlights the bytes it's asking about — decode them by eye, no tools.",
+        why: "Every capture you'll ever open starts with these 14 bytes. Knowing the layout cold — dst, src, EtherType, payload — is what lets you read a hex dump the way Wireshark does.",
+        bytes: "00 1B 44 11 3A B7 A4 5E 60 D2 91 0C 08 00 45 00 00 54 1A 2B",
+        questions: [
+          {
+            q: "The frame opens with six bytes of address. Which address is this, and whose?",
+            opts: [
+              "Destination MAC 00:1B:44:11:3A:B7 — where the frame is headed",
+              "Source MAC 00:1B:44:11:3A:B7 — who sent it",
+              "The frame check sequence (FCS)",
+            ],
+            a: 0,
+            span: [0, 6],
+            why: "Destination comes *first* on the wire — deliberately, so a switch can start picking the output port before the rest of the frame has even arrived (cut-through switching).",
+          },
+          {
+            q: "Bytes 6–11 are the next six. What are they?",
+            opts: [
+              "The destination IP address",
+              "Source MAC A4:5E:60:D2:91:0C — the sending NIC",
+              "A VLAN tag",
+            ],
+            a: 1,
+            span: [6, 12],
+            why: "Source MAC follows destination. This is the address the switch *learns* from — it maps A4:5E:60:D2:91:0C to the ingress port in its MAC table.",
+          },
+          {
+            q: "Bytes 12–13 hold 0x0800. What is the receiver told?",
+            opts: [
+              "The frame is 2048 bytes long",
+              "The payload is IPv4 — this is an EtherType, not a length",
+              "An 802.1Q VLAN tag starts here",
+            ],
+            a: 1,
+            span: [12, 14],
+            why: "Values ≥ 0x0600 in this slot are EtherTypes: 0x0800 = IPv4, 0x0806 = ARP, 0x86DD = IPv6, 0x8100 = VLAN tag. This byte pair is how the kernel picks which L3 handler gets the payload.",
+          },
+          {
+            q: "At which byte offset does the Layer 3 payload begin in this frame?",
+            opts: [
+              "Offset 12 — immediately after the two MACs",
+              "Offset 14 — after dst MAC (6) + src MAC (6) + EtherType (2)",
+              "Offset 20 — Ethernet headers are always 20 bytes",
+            ],
+            a: 1,
+            span: [14, 20],
+            why: "6 + 6 + 2 = 14: the untagged Ethernet II header size to memorize. An 802.1Q tag (0x8100 at offset 12) would insert 4 bytes and push the payload to offset 18.",
+          },
+          {
+            q: "The first payload byte is 0x45. Is that consistent with the EtherType?",
+            opts: [
+              "Yes — 0x45 reads as IP version 4 with a 20-byte header, exactly what EtherType 0x0800 promised",
+              "No — 0x45 marks an ARP request",
+              "It's meaningless padding",
+            ],
+            a: 0,
+            span: [14, 15],
+            why: "Layers agree or the packet is garbage: EtherType said IPv4, and the first payload nibble is 4. Cross-checking like this is how you spot corrupt or mis-dissected captures.",
+          },
+        ],
+      },
     ],
     quiz: {
       id: "n02q",
@@ -305,6 +372,68 @@ export const NET_A: Module[] = [
           "A probe finally reaches the destination, which answers directly — path complete",
         ],
         why: "Traceroute weaponizes the loop-prevention field. Every hop you see is a router confessing its address while executing packet discard.",
+      },
+      {
+        id: "n04e_hex",
+        type: "hex",
+        title: "Decode an IPv4 header byte by byte",
+        kind: "DECODE LAB",
+        prompt:
+          "Twenty bytes — one complete **IPv4 header**, no options, lifted from a real-shaped UDP datagram (total length 60: this header plus 40 bytes of UDP). Every answer is literally in the highlighted bytes; convert hex to decimal in your head.",
+        why: "Fields like TTL, DF, and protocol stop being trivia the moment you can find them at fixed offsets in raw bytes — that's the skill behind reading tcpdump -x output and writing packet filters.",
+        bytes: "45 00 00 3C 1C 46 40 00 40 11 4C 81 C0 A8 01 32 08 08 08 08",
+        questions: [
+          {
+            q: "Byte 0 is 0x45. What two facts does it pack?",
+            opts: [
+              "Version 4, IHL 5 → a 20-byte header with no options",
+              "Version 4, TTL 5 — this packet is nearly dead",
+              "The header is 0x45 = 69 bytes long",
+            ],
+            a: 0,
+            span: [0, 1],
+            why: "High nibble = version (4), low nibble = header length in 32-bit words (5 × 4 = 20 bytes). 0x45 opens almost every IPv4 packet on the internet — options are rare.",
+          },
+          {
+            q: "Bytes 6–7 read 0x4000. What do the flags say?",
+            opts: [
+              "Don't Fragment is set, offset 0 — routers must drop this rather than fragment it (and send ICMP Fragmentation Needed back)",
+              "More Fragments is set — this is the first piece of a fragmented packet",
+              "Fragment offset 16384 — this is a middle fragment",
+            ],
+            a: 0,
+            span: [6, 8],
+            why: "The top three bits are flags: 0x4000 = binary 010… = DF set, MF clear, offset 0. DF is what makes PMTUD work — and what black-holes big packets when ICMP is filtered.",
+          },
+          {
+            q: "Byte 8 is 0x40. How many hops does this packet have left?",
+            opts: ["40", "64 — 0x40 = 4 × 16 = 64", "128"],
+            a: 1,
+            span: [8, 9],
+            why: "TTL 64 is the Linux/macOS default, so this packet hasn't been routed yet — an unrouted Windows box would show 0x80 (128). Received TTLs let you estimate hop counts.",
+          },
+          {
+            q: "Byte 9 is 0x11. What's riding inside this packet?",
+            opts: ["TCP (protocol 6)", "UDP — 0x11 = 17", "ICMP (protocol 1)"],
+            a: 1,
+            span: [9, 10],
+            why: "The protocol field picks the L4 handler: 1 = ICMP, 6 = TCP, 17 = UDP. 0x11 hex is 17 decimal — hex-to-decimal on this byte is a daily reflex.",
+          },
+          {
+            q: "Bytes 12–15: C0 A8 01 32. Who sent this packet?",
+            opts: ["192.168.1.50", "192.168.0.50", "172.16.1.50"],
+            a: 0,
+            span: [12, 16],
+            why: "One byte per octet: C0 = 192, A8 = 168, 01 = 1, 32 = 50. RFC 1918 space — a host on a home or office LAN.",
+          },
+          {
+            q: "Bytes 16–19: 08 08 08 08. Where is it going?",
+            opts: ["80.80.80.80", "8.8.8.8 — Google's public DNS", "0.8.0.8"],
+            a: 1,
+            span: [16, 20],
+            why: "0x08 = 8, four times over. A private host sending UDP to 8.8.8.8 is almost certainly a DNS query — protocol 17 in byte 9 agrees.",
+          },
+        ],
       },
     ],
     quiz: {
@@ -458,6 +587,15 @@ export const NET_A: Module[] = [
           },
         ],
         why: "172.20.x fooling people into 'public' and 169.254 going unrecognized are two of the most common junior-engineer stumbles.",
+      },
+      {
+        id: "n05e_vlsm",
+        type: "vlsm",
+        title: "Carve a block: VLSM design",
+        kind: "DESIGN LAB",
+        prompt:
+          "You're handed a parent block and a list of departments with host counts. For each department, pick the **smallest prefix that fits** — the lesson's carving example, generated fresh forever.",
+        why: "Real address plans allocate largest-first: sort by size and every subnet lands on its natural alignment boundary automatically. Allocate small pieces first and you fragment the block until the big subnet no longer fits anywhere.",
       },
     ],
     quiz: {

@@ -3,11 +3,14 @@ import {
   BOX_INTERVALS_DAYS,
   cardKey,
   recordMiss,
+  recordMissCard,
   recordReview,
+  resolveCard,
   dueCards,
   deckStats,
 } from "./review";
-import type { ReviewCard } from "./progress";
+import type { CardQuestion, ReviewCard } from "./progress";
+import type { Module } from "../curriculum/types";
 
 const DAY = 86_400_000;
 const NOW = 1_750_000_000_000;
@@ -26,6 +29,53 @@ describe("recordMiss", () => {
     const rev: Record<string, ReviewCard> = { "n01:3": { box: 3, due: NOW + 7 * DAY, misses: 1 } };
     recordMiss(rev, "n01", 3);
     expect(rev["n01:3"]).toEqual({ box: 0, due: NOW, misses: 2 });
+  });
+});
+
+describe("self-contained cards (drills, exam bank)", () => {
+  const Q: CardQuestion = {
+    q: "Which port does SSH use?",
+    opts: ["21", "22", "23"],
+    a: 1,
+    why: "SSH is 22.",
+  };
+
+  it("recordMissCard embeds the question and source label", () => {
+    const rev: Record<string, ReviewCard> = {};
+    recordMissCard(rev, "drill:port:22", Q, "PORT DRILL");
+    expect(rev["drill:port:22"]).toEqual({
+      box: 0,
+      due: NOW,
+      misses: 1,
+      q: Q,
+      src: "PORT DRILL",
+    });
+  });
+
+  it("resolveCard prefers the embedded payload over module lookup", () => {
+    const rev: Record<string, ReviewCard> = {};
+    recordMissCard(rev, "drill:port:22", Q, "PORT DRILL");
+    const r = resolveCard({}, "drill:port:22", rev["drill:port:22"]);
+    expect(r?.q).toEqual(Q);
+    expect(r?.src).toBe("PORT DRILL");
+    expect(r?.mod).toBeUndefined();
+  });
+
+  it("resolveCard still resolves module-backed keys", () => {
+    const mod = {
+      id: "n01",
+      code: "N01",
+      title: "Test",
+      layers: [],
+      est: "",
+      tag: "",
+      lessons: [],
+      quiz: { id: "q", questions: [{ q: "?", opts: ["a", "b"], a: 0, why: "" }] },
+    } as unknown as Module;
+    const r = resolveCard({ n01: mod }, "n01:0", { box: 0, due: NOW, misses: 1 });
+    expect(r?.mod).toBe(mod);
+    expect(r?.qIndex).toBe(0);
+    expect(r?.src).toContain("N01");
   });
 });
 

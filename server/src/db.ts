@@ -16,6 +16,8 @@ export interface UserRow {
   display_name: string | null;
   created_at: string;
   email_verified: number;
+  remind: number;
+  reminded_day: string | null;
 }
 /** Projection returned by `q.userById` (no password hash, no created_at). */
 export interface PublicUserRow {
@@ -23,6 +25,14 @@ export interface PublicUserRow {
   email: string;
   display_name: string | null;
   email_verified: number;
+  remind: number;
+}
+/** Projection for the reminder sweep: opted-in users + their progress blob. */
+export interface RemindRow {
+  id: number;
+  email: string;
+  reminded_day: string | null;
+  data: string | null;
 }
 export interface SessionRow {
   id: string;
@@ -148,6 +158,14 @@ const MIGRATIONS: Migration[] = [
     `,
     // pre-verification accounts are grandfathered as verified
     post: (d) => d.exec("UPDATE users SET email_verified = 1"),
+  },
+  {
+    version: 3,
+    name: "study reminders",
+    sql: `
+      ALTER TABLE users ADD COLUMN remind INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE users ADD COLUMN reminded_day TEXT;
+    `,
   },
 ];
 
@@ -317,8 +335,17 @@ export const q = {
   ),
   userByEmail: query<[email: string], UserRow>("SELECT * FROM users WHERE email = ?"),
   userById: query<[id: UserId], PublicUserRow>(
-    "SELECT id, email, display_name, email_verified FROM users WHERE id = ?"
+    "SELECT id, email, display_name, email_verified, remind FROM users WHERE id = ?"
   ),
+  setRemind: query<[remind: number, userId: UserId]>("UPDATE users SET remind = ? WHERE id = ?"),
+  setRemindedDay: query<[day: string, userId: UserId]>(
+    "UPDATE users SET reminded_day = ? WHERE id = ?"
+  ),
+  remindCandidates: query<[], RemindRow>(`
+    SELECT u.id, u.email, u.reminded_day, p.data
+    FROM users u LEFT JOIN progress p ON p.user_id = u.id
+    WHERE u.remind = 1 AND u.email_verified = 1
+  `),
   insertUser: query<[email: string, passwordHash: string, displayName: string | null]>(
     "INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)"
   ),

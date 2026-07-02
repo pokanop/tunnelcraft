@@ -17,6 +17,18 @@ export async function sendVerifyMail(email: string, token: string): Promise<stri
   return link;
 }
 
+export async function sendReminderMail(email: string, dueCards: number): Promise<string> {
+  const link = BASE_URL + "/";
+  if (process.env.SMTP_HOST) {
+    mailLog.warn("SMTP configured but transport not wired — see server/src/mail.ts");
+  }
+  mailLog.info(
+    { to: email, kind: "reminder", dueCards, link },
+    "dev transport: study reminder" + (dueCards > 0 ? " (" + dueCards + " review cards due)" : "")
+  );
+  return link;
+}
+
 export async function sendResetMail(email: string, token: string): Promise<string> {
   const link = BASE_URL + "/#reset=" + token;
   if (process.env.SMTP_HOST) {
