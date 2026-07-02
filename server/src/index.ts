@@ -10,7 +10,7 @@ import {
   createVerifyToken,
   consumeVerifyToken,
 } from "./sessions";
-import { sendResetMail, sendVerifyMail } from "./mail";
+import { sendReminderMail, sendResetMail, sendVerifyMail } from "./mail";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -81,6 +81,7 @@ function publicUser(u: PublicUserRow) {
     email: u.email,
     displayName: u.display_name || null,
     emailVerified: !!u.email_verified,
+    remind: !!u.remind,
   };
 }
 const auth = makeAuth(q.userById);
@@ -286,6 +287,62 @@ app.get("/api/auth/:provider/callback", rateLimit(20, 60_000), (req, res) => {
   const { provider } = req.params;
   finishOAuth(typeof provider === "string" ? provider : "", req.query, signToken, res);
 });
+
+/* ---------- study reminders ----------
+   Opt-in nudge mail on days with no activity. The sweep runs a few times a day;
+   reminded_day dedupes so nobody gets two mails on the same calendar day. */
+app.post("/api/account/reminders", auth, rateLimit(10, 60_000), (req, res) => {
+  const { user } = authed(req);
+  const { on } = bodyOf(req);
+  if (typeof on !== "boolean") return res.status(400).json({ error: "Send on: true|false" });
+  if (on && !user.email_verified)
+    return res.status(400).json({ error: "Verify your email first — reminders go to it" });
+  q.setRemind.run(on ? 1 : 0, user.id);
+  res.json({ ok: true, remind: on });
+});
+
+function localDay(d: Date = new Date()): string {
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+
+async function remindSweep(): Promise<void> {
+  const today = localDay();
+  const now = Date.now();
+  for (const u of q.remindCandidates.all()) {
+    if (u.reminded_day === today) continue;
+    let lastDay = "";
+    let due = 0;
+    try {
+      const p = u.data
+        ? (JSON.parse(u.data) as {
+            meta?: { lastDay?: string };
+            rev?: Record<string, { due?: number }>;
+          })
+        : null;
+      lastDay = p?.meta?.lastDay || "";
+      due = p?.rev ? Object.values(p.rev).filter((c) => (c.due ?? Infinity) <= now).length : 0;
+    } catch {
+      /* unreadable blob — still fine to remind */
+    }
+    if (lastDay === today) continue; // already trained today
+    try {
+      await sendReminderMail(u.email, due);
+      q.setRemindedDay.run(today, u.id);
+      log.info({ userId: u.id, due }, "reminder: sent");
+    } catch (e) {
+      log.warn({ userId: u.id, err: errMsg(e) }, "reminder: send failed");
+    }
+  }
+}
+const REMIND_SWEEP_MS = Number(process.env.REMIND_SWEEP_MS || 6 * 3600 * 1000);
+setInterval(() => void remindSweep(), REMIND_SWEEP_MS);
+setTimeout(() => void remindSweep(), 60_000); // first pass shortly after boot
 
 /* ---------- progress routes ---------- */
 app.get("/api/progress", auth, (req, res) => {

@@ -2,12 +2,25 @@
    These shapes mirror client/src/lib/progress.ts — keep the two in step
    (the workspaces intentionally do not import across each other). */
 
-/** Leitner card for one missed quiz question, keyed "modId:qIndex". */
+/** Question payload for self-contained review cards (drills, exam bank). */
+export interface CardQuestion {
+  q: string;
+  opts: string[];
+  a: number;
+  why: string;
+}
+
+/** Leitner card, keyed "modId:qIndex" for quiz misses, or an opaque
+    "drill:…" / "exam:…" key for self-contained cards. */
 export interface ReviewCard {
   box: number;
   /** Epoch ms when the card is next due. */
   due: number;
   misses: number;
+  /** Embedded question for cards not resolvable from a module quiz. */
+  q?: CardQuestion;
+  /** Short source label shown in review mode. */
+  src?: string;
 }
 
 export interface Note {
@@ -58,7 +71,35 @@ export const EMPTY: Progress = {
   meta: {},
 };
 
-const LIMITS = { rev: 3000, notes: 500, noteLen: 4000 } as const;
+const LIMITS = {
+  rev: 3000,
+  notes: 500,
+  noteLen: 4000,
+  cardQ: 500,
+  cardOpt: 240,
+  cardOpts: 8,
+  cardWhy: 1000,
+  cardSrc: 80,
+} as const;
+
+/** Validate an embedded card question from an untrusted blob; null if malformed. */
+function sanitizeCardQuestion(v: unknown): CardQuestion | null {
+  if (typeof v !== "object" || v === null) return null;
+  const r = v as Record<string, unknown>;
+  if (typeof r.q !== "string" || !r.q || !Array.isArray(r.opts)) return null;
+  const opts = r.opts
+    .filter((o): o is string => typeof o === "string")
+    .slice(0, LIMITS.cardOpts)
+    .map((o) => o.slice(0, LIMITS.cardOpt));
+  const a = Math.round(Number(r.a));
+  if (opts.length < 2 || !Number.isFinite(a) || a < 0 || a >= opts.length) return null;
+  return {
+    q: r.q.slice(0, LIMITS.cardQ),
+    opts,
+    a,
+    why: typeof r.why === "string" ? r.why.slice(0, LIMITS.cardWhy) : "",
+  };
+}
 
 /** The four "set of done ids" maps that merge by plain union. */
 const BOOL_KEYS = ["les", "ex", "cap", "marks"] as const;
@@ -85,19 +126,20 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
   for (const k of new Set([...Object.keys(ra), ...Object.keys(rb)])) {
     const x = ra[k],
       y = rb[k];
-    const winner = !x
-      ? y
-      : !y
-        ? x
-        : x.box !== y.box
-          ? x.box < y.box
-            ? x
-            : y
-          : {
-              box: x.box,
-              due: Math.min(x.due, y.due),
-              misses: Math.max(x.misses || 0, y.misses || 0),
-            };
+    let winner: ReviewCard | undefined;
+    if (!x || !y) winner = x || y;
+    else if (x.box !== y.box) winner = x.box < y.box ? x : y;
+    else {
+      winner = {
+        box: x.box,
+        due: Math.min(x.due, y.due),
+        misses: Math.max(x.misses || 0, y.misses || 0),
+      };
+      const q = x.q ?? y.q;
+      const src = x.src ?? y.src;
+      if (q) winner.q = q;
+      if (src) winner.src = src;
+    }
     if (winner) out.rev[k] = winner;
   }
   const na = a.notes,
@@ -145,7 +187,12 @@ export function sanitizeProgress(p: unknown): Progress {
       const box = Math.max(0, Math.min(8, Math.round(Number(c.box) || 0)));
       const due = Number(c.due);
       const misses = Math.max(0, Math.min(999, Math.round(Number(c.misses) || 0)));
-      if (Number.isFinite(due)) out.rev[id] = { box, due, misses };
+      if (!Number.isFinite(due)) continue;
+      const card: ReviewCard = { box, due, misses };
+      const eq = sanitizeCardQuestion(c.q);
+      if (eq) card.q = eq;
+      if (typeof c.src === "string" && c.src) card.src = c.src.slice(0, LIMITS.cardSrc);
+      out.rev[id] = card;
     }
   if (isRecord(p.notes))
     for (const [id, n] of Object.entries(p.notes).slice(0, LIMITS.notes)) {

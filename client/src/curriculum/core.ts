@@ -950,10 +950,10 @@ async fn engine_actor(mut rx: mpsc::Receiver<Cmd>, mut state: EngineState) {
     },
   },
 
-  /* ---------------- R04 ---------------- */
+  /* ---------------- R05 (renumbered when R04 Futures-by-Hand landed) ---------------- */
   {
     id: "m06",
-    code: "R04",
+    code: "R05",
     title: "Network Programming in Rust, for Real",
     layers: ["L4", "RS"],
     est: "~65 min",

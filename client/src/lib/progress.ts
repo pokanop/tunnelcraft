@@ -1,13 +1,28 @@
 /* The progress blob: synced to the server, merged field-wise there and here.
    Server-side sanitize/merge (server/src/progress.ts) mirrors these shapes. */
 
-/** Leitner card for one missed quiz question, keyed "modId:qIndex". */
+/** Question payload for cards that aren't backed by a module quiz
+    (generated drills, exam-bank questions) — same shape as curriculum Question. */
+export interface CardQuestion {
+  q: string;
+  opts: string[];
+  /** Index into opts of the correct answer. */
+  a: number;
+  why: string;
+}
+
+/** Leitner card, keyed "modId:qIndex" for quiz misses, or an opaque
+    "drill:…" / "exam:…" key for self-contained cards. */
 export interface ReviewCard {
   /** Leitner box 0..4 — resets to 0 on a miss. */
   box: number;
   /** Epoch ms when the card is next due. */
   due: number;
   misses: number;
+  /** Embedded question for cards not resolvable from a module quiz. */
+  q?: CardQuestion;
+  /** Short source label shown in review mode, e.g. "PORT DRILL". */
+  src?: string;
 }
 
 export interface Note {
@@ -22,7 +37,7 @@ export interface ProgressMeta {
   bestStreak?: number;
   /** ISO date (YYYY-MM-DD) of the last active day. */
   lastDay?: string;
-  /** Module id of the most recent activity. */
+  /** Last visited location: "modId" or "modId:tab" (tab = lesson id, "lab", "quiz"). */
   last?: string | null;
   lastT?: number;
   /** Best final-exam score per track id, 0..100. */
@@ -49,4 +64,29 @@ export interface Progress {
 
 export function emptyProgress(): Progress {
   return { les: {}, quiz: {}, ex: {}, cap: {}, rev: {}, notes: {}, marks: {}, meta: {} };
+}
+
+/** Local calendar day as YYYY-MM-DD (streaks follow the learner's clock, not UTC). */
+export function localDay(d: Date = new Date()): string {
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+
+/** Record activity "now": maintains the daily streak and the last-active stamp.
+    Consecutive-day activity extends the streak; a gap resets it to 1. */
+export function touchActivity(meta: ProgressMeta, now: Date = new Date()): void {
+  const today = localDay(now);
+  if (meta.lastDay !== today) {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    meta.streak = meta.lastDay === localDay(yesterday) ? (meta.streak ?? 0) + 1 : 1;
+    meta.lastDay = today;
+  }
+  meta.bestStreak = Math.max(meta.bestStreak ?? 0, meta.streak ?? 0);
+  meta.lastT = now.getTime();
 }

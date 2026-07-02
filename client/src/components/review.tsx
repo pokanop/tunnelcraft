@@ -24,7 +24,7 @@ export function ReviewView({ byId, prog, onAnswer, go }: ReviewViewProps) {
 
   const stats = deckStats(prog.rev);
   const key = queue[idx];
-  const card = key !== undefined ? resolveCard(byId, key) : null;
+  const card = key !== undefined ? resolveCard(byId, key, prog.rev[key]) : null;
   // Stable option shuffle per card so the answer isn't always in the same slot
   const order = useMemo(() => (card ? shuffle(card.q.opts.map((_, i) => i)) : []), [key]);
 
@@ -52,10 +52,11 @@ export function ReviewView({ byId, prog, onAnswer, go }: ReviewViewProps) {
           <div className="eyebrow">REVIEW DECK</div>
           <h2 className="authttl">Nothing to review</h2>
           <p className="authsub">
-            Miss a quiz question anywhere in the course and it becomes a review card here. Cards
-            come back on a spaced schedule ({BOX_INTERVALS_DAYS.slice(1).join(", ")} days) until
-            you've answered each one right {BOX_INTERVALS_DAYS.length - 1} times in a row — then
-            they graduate. Wrong answers start the ladder over.
+            Miss a quiz question, a drill answer, or a final-exam question anywhere in the course
+            and it becomes a review card here. Cards come back on a spaced schedule (
+            {BOX_INTERVALS_DAYS.slice(1).join(", ")} days) until you've answered each one right{" "}
+            {BOX_INTERVALS_DAYS.length - 1} times in a row — then they graduate. Wrong answers start
+            the ladder over.
           </p>
         </div>
       </div>
@@ -116,9 +117,7 @@ export function ReviewView({ byId, prog, onAnswer, go }: ReviewViewProps) {
         <span className="ex-kind">
           REVIEW · {idx + 1}/{queue.length}
         </span>
-        <span className="rev-src">
-          {card.mod.code} — {card.mod.title}
-        </span>
+        <span className="rev-src">{card.src}</span>
         <span className="rev-box">
           box {c ? c.box : 0}/{BOX_INTERVALS_DAYS.length - 1}
           {c && c.misses > 1 ? " · missed ×" + c.misses : ""}
@@ -144,9 +143,14 @@ export function ReviewView({ byId, prog, onAnswer, go }: ReviewViewProps) {
             <button className="btn" onClick={next}>
               {idx + 1 < queue.length ? "NEXT CARD →" : "FINISH SESSION"}
             </button>
-            <button className="btn ghost" onClick={() => go({ v: "mod", id: card.mod.id })}>
-              REVISIT {card.mod.code}
-            </button>
+            {card.mod && (
+              <button
+                className="btn ghost"
+                onClick={() => card.mod && go({ v: "mod", id: card.mod.id })}
+              >
+                REVISIT {card.mod.code}
+              </button>
+            )}
           </div>
         )}
       </div>

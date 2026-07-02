@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { md, hl } from "../lib/render";
+import type { MissFn } from "../lib/review";
+import type { CardQuestion } from "../lib/progress";
 import type {
   BlankExercise,
   CheckExercise,
@@ -148,6 +150,11 @@ interface BlankExProps {
 export function BlankEx({ ex, done, onDone }: BlankExProps) {
   const [sel, setSel] = useState<Record<number, number>>({});
   const [state, setState] = useState<"idle" | "wrong" | "done">(done ? "done" : "idle");
+  // Shuffled display order per blank so the authored position of the right
+  // option is never a tell; values stay original indices.
+  const [optOrder] = useState<number[][]>(() =>
+    ex.blanks.map((b) => shuffle(b.opts.map((_, i) => i)))
+  );
 
   const parts = ex.code.split(/§(\d)§/); // even idx: code text, odd idx: blank number
   const allChosen = ex.blanks.every((_, i) => sel[i] !== undefined);
@@ -195,9 +202,9 @@ export function BlankEx({ ex, done, onDone }: BlankExProps) {
                   <option value="" disabled>
                     ____
                   </option>
-                  {b.opts.map((o, oi) => (
+                  {(optOrder[bi] ?? b.opts.map((_, oi) => oi)).map((oi) => (
                     <option key={oi} value={oi}>
-                      {o}
+                      {b.opts[oi]}
                     </option>
                   ))}
                 </select>
@@ -263,11 +270,69 @@ interface CidrTrainerProps {
   ex: CidrExercise;
   done: boolean;
   onDone: () => void;
+  miss?: MissFn;
 }
 
 type CidrField = "net" | "bc" | "hosts";
 
-export function CidrTrainer({ ex, done, onDone }: CidrTrainerProps) {
+function ipNum(s: string): number {
+  return s.split(".").reduce((n, o) => ((n << 8) | (parseInt(o, 10) & 255)) >>> 0, 0) >>> 0;
+}
+
+/* A missed field becomes a self-contained review card: same problem, multiple
+   choice, with the classic wrong answers as distractors. */
+function cidrMissCard(prob: CidrProblem, field: CidrField): CardQuestion {
+  const size = 2 ** (32 - prob.p);
+  const cidr = "`" + prob.ip + "/" + prob.p + "`";
+  if (field === "hosts") {
+    const correct = String(prob.hosts);
+    const cands = [String(size), String(size / 2 - 2), String(size * 2 - 2)].filter(
+      (c, i, a) => c !== correct && a.indexOf(c) === i
+    );
+    const opts = shuffle([correct, ...cands]);
+    return {
+      q: "How many **usable hosts** fit in " + cidr + "?",
+      opts,
+      a: opts.indexOf(correct),
+      why:
+        "2^(32−" +
+        prob.p +
+        ") − 2 = " +
+        prob.hosts +
+        " — the all-zeros (network) and all-ones (broadcast) addresses don't count.",
+    };
+  }
+  const netN = ipNum(prob.net);
+  const correct = field === "net" ? prob.net : prob.bc;
+  const cands = (
+    field === "net"
+      ? [prob.bc, prob.ip, ipStr((netN + size) >>> 0)]
+      : [prob.net, prob.ip, ipStr((netN + size / 2 - 1) >>> 0)]
+  ).filter((c, i, a) => c !== correct && a.indexOf(c) === i);
+  const opts = shuffle([correct, ...cands]);
+  return {
+    q:
+      "What is the **" +
+      (field === "net" ? "network" : "broadcast") +
+      " address** of " +
+      cidr +
+      "?",
+    opts,
+    a: opts.indexOf(correct),
+    why:
+      "/" +
+      prob.p +
+      " keeps the top " +
+      prob.p +
+      " bits: network = IP AND mask = " +
+      prob.net +
+      "; broadcast = network OR inverted mask = " +
+      prob.bc +
+      ".",
+  };
+}
+
+export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
   const [prob, setProb] = useState<CidrProblem>(makeProb);
   const [vals, setVals] = useState<Record<CidrField, string>>({ net: "", bc: "", hosts: "" });
   const [state, setState] = useState<"idle" | "checked">("idle");
@@ -282,6 +347,15 @@ export function CidrTrainer({ ex, done, onDone }: CidrTrainerProps) {
     };
     setMarks(m);
     setState("checked");
+    if (miss)
+      (Object.keys(m) as CidrField[]).forEach((f) => {
+        if (!m[f])
+          miss(
+            "drill:cidr:" + f + ":" + prob.ip + "/" + prob.p,
+            cidrMissCard(prob, f),
+            "CIDR DRILL"
+          );
+      });
     if (m.net && m.bc && m.hosts) {
       setSolved(solved + 1);
       if (!done) onDone();
@@ -428,6 +502,11 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
   const qs = mod.quiz?.questions ?? []; // only rendered for modules with a quiz
   const [sel, setSel] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
+  // Render options in a stable per-mount shuffle so the correct answer's
+  // authored position never becomes a tell; sel/`a` stay original indices.
+  const [order, setOrder] = useState<number[][]>(() =>
+    qs.map((q) => shuffle(q.opts.map((_, oi) => oi)))
+  );
 
   const allAnswered = qs.every((_, i) => sel[i] !== undefined);
   const score = qs.reduce((s, q, i) => s + (sel[i] === q.a ? 1 : 0), 0);
@@ -446,6 +525,7 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
   const retake = () => {
     setSel({});
     setSubmitted(false);
+    setOrder(qs.map((q) => shuffle(q.opts.map((_, oi) => oi))));
   };
 
   return (
@@ -470,7 +550,8 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
             <span className="qn">Q{i + 1}</span>
             {md(q.q)}
           </p>
-          {q.opts.map((o, oi) => {
+          {(order[i] ?? q.opts.map((_, oi) => oi)).map((oi) => {
+            const o = q.opts[oi] ?? "";
             let cls = "opt";
             if (!submitted && sel[i] === oi) cls += " selopt";
             if (submitted && oi === q.a) cls += " rightopt";
