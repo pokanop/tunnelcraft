@@ -7,6 +7,7 @@ COPY package.json bun.lock ./
 COPY client/package.json client/
 COPY server/package.json server/
 RUN bun install --frozen-lockfile
+COPY tsconfig.base.json ./
 COPY client client
 RUN bun run --cwd client --bun build
 
