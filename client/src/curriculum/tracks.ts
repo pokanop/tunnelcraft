@@ -6,6 +6,7 @@ import { NET_WIFI } from "./net-wifi";
 import { NET_B } from "./net-b";
 import { NET_C } from "./net-c";
 import { NET_D } from "./net-d";
+import { NET_V6T } from "./net-v6t";
 import { NET_CLOUD } from "./net-cloud";
 import { RUST_EXTRA } from "./rust-extra";
 import { RUST_IDIOM } from "./rust-idiom";
@@ -21,6 +22,7 @@ const POOL: Module[] = [
   ...NET_B,
   ...NET_C,
   ...NET_D,
+  ...NET_V6T,
   ...NET_CLOUD,
   ...RUST_EXTRA,
   ...RUST_IDIOM,
@@ -48,6 +50,7 @@ const ORDER: string[] = [
   "n10",
   "n11",
   "n14w",
+  "n19",
   "n12",
   "n13",
   "n16",
@@ -84,7 +87,7 @@ export const TRACKS: Track[] = [
     code: "TRACK 1",
     title: "Network Fundamentals",
     blurb:
-      "Zero to certifiable: layers, Ethernet, Wi-Fi & RF, IP & IPv6, DHCP, enterprise wireless, subnetting, TCP internals, routing & BGP, NAT, DNS, TLS/QUIC, cellular & CGNAT, the toolbelt, security doctrine, and cloud networking — VPCs, load balancers, IPsec & SD-WAN.",
+      "Zero to certifiable: layers, Ethernet, Wi-Fi & RF, IP & IPv6, DHCP, enterprise wireless, subnetting, TCP internals, routing & BGP, NAT, DNS, TLS/QUIC, cellular & CGNAT, IPv6 transition (NAT64/DNS64/464XLAT), the toolbelt, security doctrine, and cloud networking — VPCs, load balancers, IPsec & SD-WAN.",
     modules: [
       "m01",
       "n02",
@@ -101,6 +104,7 @@ export const TRACKS: Track[] = [
       "n10",
       "n11",
       "n14w",
+      "n19",
       "n12",
       "n13",
       "n16",

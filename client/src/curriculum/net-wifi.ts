@@ -859,7 +859,7 @@ export const NET_WIFI: Module[] = [
             p: "Where it bites: DNS64 only works for connections made *by hostname*. An app — or a VPN config — that dials a raw **IPv4 literal** bypasses the synthesis and, without a CLAT, fails outright. This is why Apple requires apps to work on IPv6-only networks, and why your tunnel client (P01/P03) must handle: an endpoint configured as a v4 literal on a v6-only path, DNS inside the tunnel returning v4 answers, and dual-stack preference logic (Happy Eyeballs, N12) interacting with the tunnel's own routes.",
           },
           {
-            note: "The robust posture for a tunnel endpoint is boring on purpose: publish the server under a hostname with both A and AAAA records, let the client connect over whichever family the network offers, and carry both families *inside* the tunnel regardless. WireGuard is indifferent to outer family (T03) — v4-in-v6 is a Tuesday. Exploit that.",
+            note: "The robust posture for a tunnel endpoint is boring on purpose: publish the server under a hostname with both A and AAAA records, let the client connect over whichever family the network offers, and carry both families *inside* the tunnel regardless. WireGuard is indifferent to outer family (T03) — v4-in-v6 is a Tuesday. Exploit that. This lesson is the trailer; N19 is the movie — prefix mechanics, DNS64's failure modes, CLAT/PLAT internals, and the v6-only test rig Apple expects you to pass.",
             label: "dual-stack outside and in",
           },
         ],
