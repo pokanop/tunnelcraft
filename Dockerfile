@@ -21,4 +21,4 @@ COPY server server
 COPY --from=build /app/client/dist client/dist
 EXPOSE 4000
 VOLUME /app/server/data
-CMD ["bun", "server/src/index.js"]
+CMD ["bun", "server/src/index.ts"]

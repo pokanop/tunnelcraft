@@ -35,9 +35,10 @@ one device never erases a miss recorded on another.
 
 ## Stack
 
-- **Client** — React 19 + Vite 8, single hand-rolled design system (no UI framework); accessible by construction — skip-to-content link, main landmark, aria-labeled interactive exercises, quiz feedback and lab verdicts announced via live regions, `prefers-reduced-motion` honored (animations disabled and the hero strip rests at readable contrast); light/dark/system theming with OS-preference tracking, persisted per device, flash-free via a pre-hydration snippet
-- **Server** — Bun + Express 5, SQLite via the built-in `bun:sqlite` (runtime-adaptive: falls back to `node:sqlite` under Node ≥ 22.5 — zero native deps either way)
+- **Client** — TypeScript, React 19 + Vite 8, single hand-rolled design system (no UI framework); accessible by construction — skip-to-content link, main landmark, aria-labeled interactive exercises, quiz feedback and lab verdicts announced via live regions, `prefers-reduced-motion` honored (animations disabled and the hero strip rests at readable contrast); light/dark/system theming with OS-preference tracking, persisted per device, flash-free via a pre-hydration snippet
+- **Server** — TypeScript on Bun (run directly, no build step) + Express 5, SQLite via the built-in `bun:sqlite` (runtime-adaptive: falls back to `node:sqlite` under Node ≥ 22.5 — zero native deps either way)
 - **Durability** — versioned schema migrations via `PRAGMA user_version` (each migration transactional, applied once, in order; pre-migration databases are detected and adopted in place). Multi-statement auth sequences (OAuth create-and-link, password reset/change with session revocation) run inside transactions, so a crash can never leave a half-applied state. Online backups via SQLite's backup API — consistent snapshots while serving traffic
+- **Tooling** — strict TypeScript end to end (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) type-checked with `tsc`; linting and formatting by Oxc's [oxlint](https://oxc.rs/docs/guide/usage/linter) and oxfmt
 - **Operations** — structured JSON logging via pino (request IDs honored from `x-request-id` and echoed back, per-request latency/status lines, secrets redacted, health probes at debug); liveness + readiness health endpoints with a real DB probe; graceful shutdown on SIGTERM/SIGINT that drains HTTP, flips readiness to 503, checkpoints the SQLite WAL, and closes the DB — with a hard timeout guard
 - **Auth** — email/password (bcryptjs) plus social login via [Arctic](https://arcticjs.dev) (Google with PKCE, GitHub). OAuth identities auto-link to an existing account with the same verified email, so password and social sign-in coexist on one account
 - **Email verification** — new password accounts get a 24-hour single-use verification link (soft gate: the app stays usable, a banner offers resend, rate-limited 3/min). OAuth sign-ins are auto-verified since Google/GitHub attest the email — which is also what makes auto-linking safe. Completing a password reset marks the mailbox verified too, and existing accounts are grandfathered as verified on migration
@@ -59,7 +60,7 @@ bun run dev     # API on :4000 + UI on :5173 (proxies /api → :4000), both in o
 
 Open http://localhost:5173. (`bun run dev:server` / `bun run dev:client` still run each side alone; the server auto-restarts on change via `bun --watch`.)
 
-Other root scripts: `bun test` (server API tests + client unit tests, one command across both workspaces), `bun run lint` / `lint:fix` (ESLint), `bun run format` / `format:check` (Prettier), `bun run check` (both), `bun run clean`.
+Other root scripts: `bun test` (server API tests + client unit tests, one command across both workspaces), `bun run lint` / `lint:fix` (oxlint), `bun run format` / `format:check` (oxfmt), `bun run typecheck` (tsc, both workspaces), `bun run check` (all three), `bun run clean`.
 
 ## Run it (production)
 
@@ -113,7 +114,7 @@ server-side; the merge is monotonic (you can't lose completed work by racing dev
 | `PORT`                                      | `4000`                  | server port                                                                                                     |
 | `DATA_DIR`                                  | `server/data`           | where `tunnelcraft.db` lives                                                                                    |
 | `BASE_URL`                                  | `http://localhost:4000` | public origin for OAuth redirect URIs and reset links                                                           |
-| `SMTP_HOST` (+ friends)                     | unset                   | reset emails log to the server console until a real transport is wired in `server/src/mail.js`                  |
+| `SMTP_HOST` (+ friends)                     | unset                   | reset emails log to the server console until a real transport is wired in `server/src/mail.ts`                  |
 | `LOG_LEVEL`                                 | `info`                  | pino level (`debug` shows health probes and more); pipe through `npx pino-pretty` for human-readable dev output |
 | `SHUTDOWN_TIMEOUT_MS`                       | `10000`                 | hard deadline for graceful drain before forced exit                                                             |
 | `BACKUP_TOKEN`                              | unset                   | enables `POST /api/admin/backup` when set; unset disables the endpoint entirely                                 |
@@ -127,7 +128,7 @@ the callback URLs above, and set the env vars — no code changes needed.
 
 ## Schema changes & backups
 
-**Adding a migration:** append an entry to `MIGRATIONS` in `server/src/db.js` with the
+**Adding a migration:** append an entry to `MIGRATIONS` in `server/src/db.ts` with the
 next version number — never edit an existing entry, since deployed databases have
 already applied it. Each migration runs in a transaction and stamps
 `PRAGMA user_version`; fresh databases replay the whole history, existing ones apply
@@ -148,16 +149,16 @@ the live database for continuous replication.
 ```
 client/
   src/
-    curriculum/     core.js + net-a..d.js, rust-idiom.js, rust-extra.js, platform-a/b.js, tracks.js
-    components/     exercises.jsx (order/blank/cidr/checklist/quiz), extra.jsx (match, port drill), auth.jsx
-    lib/            render.jsx (markdown-ish blocks, code highlighting, layer glyphs), api.js
-    App.jsx         routing, track home, module view, progress sync
+    curriculum/     core.ts + net-a..d.ts, rust-idiom.ts, rust-extra.ts, platform-a/b.ts, tracks.ts (+ types.ts)
+    components/     exercises.tsx (order/blank/cidr/checklist/quiz), extra.tsx (match, port drill), auth.tsx
+    lib/            render.tsx (markdown-ish blocks, code highlighting, layer glyphs), api.ts
+    App.tsx         routing, track home, module view, progress sync
 server/
-  src/db.js         schema + prepared statements (swap in better-sqlite3 here if preferred)
-  src/index.js      auth, progress, static serving
+  src/db.ts         schema + prepared statements (swap in better-sqlite3 here if preferred)
+  src/index.ts      auth, progress, static serving
 ```
 
-Adding a module = one object in a curriculum file + its id in `tracks.js`. The data
+Adding a module = one object in a curriculum file + its id in `tracks.ts`. The data
 shape is validated by the smoke test pattern in the repo history: lessons are blocks
 (`p`/`h`/`ul`/`code`/`note`/`tbl`), exercises are typed
 (`order`/`blank`/`cidr`/`match`/`ports`/`check`), quizzes need `a` in range and a `why`.

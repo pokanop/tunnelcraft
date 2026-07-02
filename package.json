@@ -15,20 +15,18 @@
     "start": "bun run --cwd server start",
     "test": "bun test",
     "preview": "bun run --cwd client preview",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "check": "bun run lint && bun run format:check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "typecheck": "tsc -p client && tsc -p server",
+    "check": "bun run lint && bun run format:check && bun run typecheck",
     "clean": "rm -rf node_modules client/node_modules server/node_modules client/dist"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "eslint": "^9.39.4",
-    "eslint-plugin-react": "^7.37.4",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.7.0",
-    "prettier": "^3.4.2"
+    "oxfmt": "^0.57.0",
+    "oxlint": "^1.72.0",
+    "typescript": "^6.0.3"
   },
   "engines": {
     "bun": ">=1.2.0"

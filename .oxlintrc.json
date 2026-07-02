@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "unicorn", "oxc", "import"],
+  "categories": {
+    "correctness": "deny",
+    "suspicious": "deny",
+    "perf": "warn"
+  },
+  "ignorePatterns": ["client/dist/", "server/data/"],
+  "rules": {
+    // Intentional "// CODE — TITLE" design aesthetic in headings
+    "react/jsx-no-comment-textnodes": "off",
+    // Plain apostrophes in prose are fine
+    "react/no-unescaped-entities": "off",
+    // Vite uses the automatic JSX runtime (tsconfig "jsx": "react-jsx"), so
+    // importing React just for JSX would itself be an unused-import error
+    "react/react-in-jsx-scope": "off",
+    // Side-effect stylesheet imports are how Vite bundles CSS
+    "import/no-unassigned-import": ["deny", { "allow": ["**/*.css"] }],
+    "react/rules-of-hooks": "deny",
+    "react/exhaustive-deps": "warn",
+    "no-unused-vars": ["deny", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
+  },
+  "overrides": [
+    { "files": ["client/src/**"], "env": { "browser": true } },
+    { "files": ["server/**", "client/vite.config.ts"], "env": { "node": true } },
+    {
+      "files": ["server/**"],
+      "rules": {
+        // Express 5 forwards rejected handler promises to the error middleware,
+        // so async endpoint handlers are safe (per the rule's own Express 5 note).
+        "oxc/no-async-endpoint-handlers": "off"
+      }
+    }
+  ]
+}
