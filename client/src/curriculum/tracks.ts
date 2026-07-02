@@ -1,10 +1,12 @@
 /* Assemble all modules into ordered tracks */
 import { CORE_MODULES } from "./core";
 import { NET_A } from "./net-a";
+import { NET_DHCP } from "./net-dhcp";
 import { NET_WIFI } from "./net-wifi";
 import { NET_B } from "./net-b";
 import { NET_C } from "./net-c";
 import { NET_D } from "./net-d";
+import { NET_CLOUD } from "./net-cloud";
 import { RUST_EXTRA } from "./rust-extra";
 import { RUST_IDIOM } from "./rust-idiom";
 import { PLATFORM_A } from "./platform-a";
@@ -14,10 +16,12 @@ import type { Module, Track } from "./types";
 const POOL: Module[] = [
   ...CORE_MODULES,
   ...NET_A,
+  ...NET_DHCP,
   ...NET_WIFI,
   ...NET_B,
   ...NET_C,
   ...NET_D,
+  ...NET_CLOUD,
   ...RUST_EXTRA,
   ...RUST_IDIOM,
   ...PLATFORM_A,
@@ -27,12 +31,14 @@ const byId: Record<string, Module> = Object.fromEntries(POOL.map((m) => [m.id, m
 
 const ORDER: string[] = [
   // NET track (m01=N01, m02=N08, m03=N11 from core;
-  // n04w/n06w/n14w = N04/N06/N14 wireless modules from net-wifi)
+  // n04w/n06w/n14w = N04/N06/N14 wireless modules from net-wifi;
+  // n15=N15 DHCP, taught right after N05 where addressing lands)
   "m01",
   "n02",
   "n03",
   "n04w",
   "n04",
+  "n15",
   "n06w",
   "n05",
   "m02",
@@ -44,6 +50,7 @@ const ORDER: string[] = [
   "n14w",
   "n12",
   "n13",
+  "n16",
   // RUST track
   "m04",
   "r05",
@@ -77,13 +84,14 @@ export const TRACKS: Track[] = [
     code: "TRACK 1",
     title: "Network Fundamentals",
     blurb:
-      "Zero to certifiable: layers, Ethernet, Wi-Fi & RF, enterprise wireless, IP & IPv6, subnetting, TCP internals, routing & BGP, NAT, DNS, TLS/QUIC, cellular & CGNAT, the toolbelt, and security doctrine.",
+      "Zero to certifiable: layers, Ethernet, Wi-Fi & RF, IP & IPv6, DHCP, enterprise wireless, subnetting, TCP internals, routing & BGP, NAT, DNS, TLS/QUIC, cellular & CGNAT, the toolbelt, security doctrine, and cloud networking — VPCs, load balancers, IPsec & SD-WAN.",
     modules: [
       "m01",
       "n02",
       "n03",
       "n04w",
       "n04",
+      "n15",
       "n06w",
       "n05",
       "m02",
@@ -95,6 +103,7 @@ export const TRACKS: Track[] = [
       "n14w",
       "n12",
       "n13",
+      "n16",
     ],
   },
   {

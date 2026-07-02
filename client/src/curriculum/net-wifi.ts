@@ -78,7 +78,7 @@ export const NET_WIFI: Module[] = [
             ],
           },
           {
-            p: "Only now does the security handshake run (next lesson), and only after *that* do the L3 rituals you already know begin: DHCP for an address, ARP to find the gateway (N02), and you're routing. The whole 'connecting…' spinner is this sequence: scan → auth → associate → key handshake → DHCP → gateway ARP. Every one of those steps is a place it can stall, which is exactly why Wi-Fi 'connected but no internet' has so many distinct causes.",
+            p: "Only now does the security handshake run (next lesson), and only after *that* do the L3 rituals you already know begin: DHCP for an address (N15), ARP to find the gateway (N02), and you're routing. The whole 'connecting…' spinner is this sequence: scan → auth → associate → key handshake → DHCP → gateway ARP. Every one of those steps is a place it can stall, which is exactly why Wi-Fi 'connected but no internet' has so many distinct causes.",
           },
           {
             note: "The frame types split into three families worth knowing by name: **management** (beacons, probes, auth, association, and — crucially — *deauthentication*), **control** (RTS/CTS, ACK), and **data** (your actual traffic, carrying the Ethernet-like payload from N02). The attacks in lesson 5 almost all abuse *management* frames, because in classic Wi-Fi those frames are unauthenticated.",

@@ -50,7 +50,7 @@ export const NET_A: Module[] = [
           {
             ul: [
               "**Unicast** — one specific MAC.",
-              "**Broadcast** — ff:ff:ff:ff:ff:ff, delivered to everyone on the segment. ARP and DHCP discovery live here.",
+              "**Broadcast** — ff:ff:ff:ff:ff:ff, delivered to everyone on the segment. ARP and DHCP discovery (N15) live here.",
               "**Multicast** — a group; the low bit of the first byte is set. IPv6 neighbor discovery uses it instead of broadcast.",
             ],
           },
@@ -278,7 +278,7 @@ export const NET_A: Module[] = [
             p: "ARP is gone; **Neighbor Discovery (NDP)** replaces it using ICMPv6 (yes — *ICMPv6 is load-bearing*; firewall it away and IPv6 simply stops). **Neighbor Solicitation/Advertisement** = ARP's who-has/is-at, but sent to a solicited-node multicast group instead of broadcast, so only ~the right host is disturbed. **Router Solicitation/Advertisement** = routers announcing 'here is the prefix, here is your gateway (my link-local address), here are your options.'",
           },
           {
-            p: "**SLAAC** (stateless autoconfiguration) falls out: host hears a Router Advertisement carrying prefix `2001:db8:1::/64`, appends a self-generated 64-bit suffix, duplicate-checks via NDP, done — an address with **no DHCP server at all**. DHCPv6 still exists (enterprises like the audit trail, and RAs can delegate DNS options to it), but the default posture of IPv6 is 'the network describes itself.'",
+            p: "**SLAAC** (stateless autoconfiguration) falls out: host hears a Router Advertisement carrying prefix `2001:db8:1::/64`, appends a self-generated 64-bit suffix, duplicate-checks via NDP, done — an address with **no DHCP server at all** (the stateful IPv4 way of getting one is the next module, N15). DHCPv6 still exists (enterprises like the audit trail, and RAs can delegate DNS options to it — N15 closes with the contrast), but the default posture of IPv6 is 'the network describes itself.'",
           },
           {
             p: "**Dual-stack** is the deployment reality: hosts run IPv4 and IPv6 simultaneously, and applications pick per-connection. **Happy Eyeballs** is the picking algorithm: try IPv6, give it a ~250 ms head start, race IPv4, use whichever connects — so broken IPv6 degrades to 'slightly slower first connection' instead of an outage. For your VPN client this doubles everything: two address families to route (`::/0` alongside `0.0.0.0/0` — T03's AllowedIPs), two DNS record types, and the classic leak where the tunnel captures IPv4 while native IPv6 walks around it. Handle both or leak.",
@@ -414,7 +414,7 @@ export const NET_A: Module[] = [
         est: "~10 min",
         blocks: [
           {
-            p: "Some ranges never route on the public internet and you must recognize them on sight. **RFC 1918 private**: `10.0.0.0/8`, `172.16.0.0/12` (that's 172.16–172.31 — the /12 trips people), `192.168.0.0/16`. **Loopback**: `127.0.0.0/8`, this machine talking to itself. **Link-local**: `169.254.0.0/16` — the 'DHCP failed' self-assigned range; seeing it on a client is a diagnosis, not an address. **CGNAT**: `100.64.0.0/10`, carrier-grade NAT space (Tailscale famously squats it for tunnel IPs). **Multicast**: `224.0.0.0/4`. **Documentation**: `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24` — for examples, like these lessons use.",
+            p: "Some ranges never route on the public internet and you must recognize them on sight. **RFC 1918 private**: `10.0.0.0/8`, `172.16.0.0/12` (that's 172.16–172.31 — the /12 trips people), `192.168.0.0/16`. **Loopback**: `127.0.0.0/8`, this machine talking to itself. **Link-local**: `169.254.0.0/16` — the 'DHCP failed (N15)' self-assigned range; seeing it on a client is a diagnosis, not an address. **CGNAT**: `100.64.0.0/10`, carrier-grade NAT space (Tailscale famously squats it for tunnel IPs). **Multicast**: `224.0.0.0/4`. **Documentation**: `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24` — for examples, like these lessons use.",
           },
           {
             p: "Two prefix lengths with special idioms: **/32** is a single host — used in route tables to pin one destination (the N01 loop-prevention trick) and in firewall rules to mean 'exactly this machine.' **/31** is the point-to-point special case (RFC 3021): two addresses, no network/broadcast reserved, both usable — standard for router-to-router links, and the reason 'hosts = 2ⁿ − 2' has an asterisk.",
