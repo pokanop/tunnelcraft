@@ -7,11 +7,18 @@ import { search } from "../lib/search.js";
 function Highlight({ text, terms }) {
   const parts = useMemo(() => {
     if (!terms || !terms.length) return [text];
-    const re = new RegExp("(" + terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "ig");
+    const re = new RegExp(
+      "(" + terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")",
+      "ig"
+    );
     return text.split(re);
   }, [text, terms]);
   return parts.map((p, i) =>
-    terms.some((t) => p.toLowerCase() === t) ? <mark key={i}>{p}</mark> : <React.Fragment key={i}>{p}</React.Fragment>
+    terms.some((t) => p.toLowerCase() === t) ? (
+      <mark key={i}>{p}</mark>
+    ) : (
+      <React.Fragment key={i}>{p}</React.Fragment>
+    )
   );
 }
 
@@ -25,12 +32,15 @@ export function SearchOverlay({ open, onClose, onJump }) {
 
   useEffect(() => {
     if (open) {
-      setQ(""); setActive(0);
+      setQ("");
+      setActive(0);
       setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
     }
   }, [open]);
 
-  useEffect(() => { setActive(0); }, [q]);
+  useEffect(() => {
+    setActive(0);
+  }, [q]);
 
   useEffect(() => {
     // keep the active row scrolled into view
@@ -40,17 +50,35 @@ export function SearchOverlay({ open, onClose, onJump }) {
 
   if (!open) return null;
 
-  const jump = (r) => { onJump(r); onClose(); };
+  const jump = (r) => {
+    onJump(r);
+    onClose();
+  };
   const onKey = (e) => {
-    if (e.key === "Escape") { e.preventDefault(); onClose(); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, results.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
-    else if (e.key === "Enter" && results[active]) { e.preventDefault(); jump(results[active]); }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((a) => Math.min(a + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((a) => Math.max(a - 1, 0));
+    } else if (e.key === "Enter" && results[active]) {
+      e.preventDefault();
+      jump(results[active]);
+    }
   };
 
   return (
     <div className="searchveil" onClick={onClose} role="presentation">
-      <div className="searchbox" role="dialog" aria-modal="true" aria-label="Search the curriculum" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="searchbox"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search the curriculum"
+        onClick={(e) => e.stopPropagation()}
+      >
         <input
           ref={inputRef}
           className="searchinput"
@@ -69,7 +97,9 @@ export function SearchOverlay({ open, onClose, onJump }) {
         </div>
         {q.trim().length >= 2 && (
           <ul className="searchresults" id="search-results" role="listbox" ref={listRef}>
-            {results.length === 0 && <li className="sr-empty">No matches — try a protocol name, tool, or concept.</li>}
+            {results.length === 0 && (
+              <li className="sr-empty">No matches — try a protocol name, tool, or concept.</li>
+            )}
             {results.map((r, i) => (
               <li
                 key={r.modId + ":" + r.tab + ":" + r.title}
@@ -83,9 +113,13 @@ export function SearchOverlay({ open, onClose, onJump }) {
                 <div className="sr-head">
                   <span className="sr-code">{r.code}</span>
                   <span className={"sr-kind k-" + r.kind}>{r.kind.toUpperCase()}</span>
-                  <span className="sr-title"><Highlight text={r.title} terms={r.matchTerms} /></span>
+                  <span className="sr-title">
+                    <Highlight text={r.title} terms={r.matchTerms} />
+                  </span>
                 </div>
-                <div className="sr-snippet"><Highlight text={r.snippet} terms={r.matchTerms} /></div>
+                <div className="sr-snippet">
+                  <Highlight text={r.snippet} terms={r.matchTerms} />
+                </div>
               </li>
             ))}
           </ul>

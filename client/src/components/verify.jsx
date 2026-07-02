@@ -14,19 +14,34 @@ export function VerifyBanner({ user, onVerified }) {
     if (!m) return;
     history.replaceState(null, "", window.location.pathname);
     setState("verifying");
-    api.verifyEmail(m[1])
-      .then(() => { setState("done"); onVerified(); })
-      .catch((e) => { setState("error"); setNote(e.message || "Verification failed"); });
+    api
+      .verifyEmail(m[1])
+      .then(() => {
+        setState("done");
+        onVerified();
+      })
+      .catch((e) => {
+        setState("error");
+        setNote(e.message || "Verification failed");
+      });
   }, []);
 
   if (!user && state === "idle") return null;
-  if (user && user.emailVerified && state !== "done" && state !== "verifying" && state !== "error") return null;
+  if (user && user.emailVerified && state !== "done" && state !== "verifying" && state !== "error")
+    return null;
 
   const resend = () => {
     setState("sending");
-    api.resendVerification()
-      .then((r) => { setState("sent"); setNote(r.message || "Sent"); })
-      .catch((e) => { setState("error"); setNote(e.message || "Could not send"); });
+    api
+      .resendVerification()
+      .then((r) => {
+        setState("sent");
+        setNote(r.message || "Sent");
+      })
+      .catch((e) => {
+        setState("error");
+        setNote(e.message || "Could not send");
+      });
   };
 
   return (
@@ -34,16 +49,20 @@ export function VerifyBanner({ user, onVerified }) {
       {state === "verifying" && <span>Verifying your email…</span>}
       {state === "done" && <span>✓ Email verified — you're all set.</span>}
       {state === "error" && <span>✗ {note} </span>}
-      {(state === "idle" || state === "sending" || state === "sent" || state === "error") && user && !user.emailVerified && (
-        <>
-          <span>Verify {user.email} to secure your account.</span>
-          {state === "sent"
-            ? <span className="verify-note">{note}</span>
-            : <button className="verify-resend" disabled={state === "sending"} onClick={resend}>
+      {(state === "idle" || state === "sending" || state === "sent" || state === "error") &&
+        user &&
+        !user.emailVerified && (
+          <>
+            <span>Verify {user.email} to secure your account.</span>
+            {state === "sent" ? (
+              <span className="verify-note">{note}</span>
+            ) : (
+              <button className="verify-resend" disabled={state === "sending"} onClick={resend}>
                 {state === "sending" ? "SENDING…" : "RESEND EMAIL"}
-              </button>}
-        </>
-      )}
+              </button>
+            )}
+          </>
+        )}
     </div>
   );
 }

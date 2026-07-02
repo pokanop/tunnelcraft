@@ -1,18 +1,24 @@
-# Build the client, run the server, serve both from one container
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY client/package*.json client/
-RUN npm --prefix client install
-COPY client client
-RUN npm --prefix client run build
+# Build the client, run the server, serve both from one container — all on Bun.
+# Uses the root bun.lock for reproducible installs (--frozen-lockfile).
 
-FROM node:22-alpine
+FROM oven/bun:1-alpine AS build
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY client/package.json client/
+COPY server/package.json server/
+RUN bun install --frozen-lockfile
+COPY client client
+RUN bun run --cwd client --bun build
+
+FROM oven/bun:1-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-COPY server/package*.json server/
-RUN npm --prefix server install --omit=dev
+COPY package.json bun.lock ./
+COPY client/package.json client/
+COPY server/package.json server/
+RUN bun install --frozen-lockfile --production
 COPY server server
 COPY --from=build /app/client/dist client/dist
 EXPOSE 4000
 VOLUME /app/server/data
-CMD ["node", "server/src/index.js"]
+CMD ["bun", "server/src/index.js"]

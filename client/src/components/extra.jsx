@@ -25,26 +25,46 @@ export function MatchEx({ ex, done, onDone }) {
               className={"matchsel" + (results ? (results[i] ? " rightsel" : " wrongsel") : "")}
               value={sel[i]}
               disabled={done}
-              onChange={(e) => { setChecked(false); setSel(sel.map((s, j) => (j === i ? e.target.value : s))); }}
+              onChange={(e) => {
+                setChecked(false);
+                setSel(sel.map((s, j) => (j === i ? e.target.value : s)));
+              }}
             >
               <option value="">— pick the definition —</option>
-              {defs.map((d, j) => <option key={j} value={d}>{d}</option>)}
+              {defs.map((d, j) => (
+                <option key={j} value={d}>
+                  {d}
+                </option>
+              ))}
             </select>
           </div>
         ))}
       </div>
       {done ? (
-        <div className="verdict good" role="status">✓ LAB COMPLETE</div>
+        <div className="verdict good" role="status">
+          ✓ LAB COMPLETE
+        </div>
       ) : checked && allRight ? (
         <>
-          <div className="verdict good" role="status">✓ ALL MATCHED</div>
+          <div className="verdict good" role="status">
+            ✓ ALL MATCHED
+          </div>
           <p className="why">{md(ex.why)}</p>
-          <button className="btn" onClick={onDone}>MARK LAB COMPLETE</button>
+          <button className="btn" onClick={onDone}>
+            MARK LAB COMPLETE
+          </button>
         </>
       ) : (
         <>
-          {checked && !allRight && <div className="verdict badv" role="alert">✗ {results.filter(Boolean).length}/{ex.pairs.length} correct — wrong rows marked, adjust and re-check</div>}
-          <button className="btn" disabled={!allPicked} onClick={() => setChecked(true)}>CHECK MATCHES</button>
+          {checked && !allRight && (
+            <div className="verdict badv" role="alert">
+              ✗ {results.filter(Boolean).length}/{ex.pairs.length} correct — wrong rows marked,
+              adjust and re-check
+            </div>
+          )}
+          <button className="btn" disabled={!allPicked} onClick={() => setChecked(true)}>
+            CHECK MATCHES
+          </button>
         </>
       )}
     </div>
@@ -71,32 +91,59 @@ export function PortDrill({ ex, done, onDone }) {
     if (s > best) setBest(s);
     if (ok && !done) onDone();
   };
-  const next = () => { setProb(pickPort(prob.svc)); setVal(""); setState("ask"); };
+  const next = () => {
+    setProb(pickPort(prob.svc));
+    setVal("");
+    setState("ask");
+  };
 
   return (
     <div className="exwrap">
       <div className="ex-kind">{ex.kind}</div>
       <div className="ex-ttl">{ex.title}</div>
       <p className="ex-prompt">{md(ex.prompt)}</p>
-      <div className="probline">SERVICE: <strong>{prob.svc}</strong></div>
+      <div className="probline">
+        SERVICE: <strong>{prob.svc}</strong>
+      </div>
       <div className="fields" style={{ gridTemplateColumns: "minmax(140px,220px)" }}>
         <div className="fld">
           <label>port number</label>
           <input
-            value={val} inputMode="numeric" autoComplete="off"
+            value={val}
+            inputMode="numeric"
+            autoComplete="off"
             className={state === "wrong" ? "wr" : state === "right" ? "rt" : ""}
             onChange={(e) => setVal(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") (state === "ask" ? check() : next()); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") state === "ask" ? check() : next();
+            }}
           />
         </div>
       </div>
-      {state === "right" && <div className="verdict good" role="status">✓ {prob.svc} = {prob.port} — streak {streak}</div>}
-      {state === "wrong" && <div className="verdict badv" role="alert">✗ {prob.svc} is port {prob.port}</div>}
-      <div className="scoreline">streak {streak} · best {best}{done ? " · ✓ drill logged" : " · first correct answer logs this lab"}</div>
+      {state === "right" && (
+        <div className="verdict good" role="status">
+          ✓ {prob.svc} = {prob.port} — streak {streak}
+        </div>
+      )}
+      {state === "wrong" && (
+        <div className="verdict badv" role="alert">
+          ✗ {prob.svc} is port {prob.port}
+        </div>
+      )}
+      <div className="scoreline">
+        streak {streak} · best {best}
+        {done ? " · ✓ drill logged" : " · first correct answer logs this lab"}
+      </div>
       <div style={{ marginTop: 10 }}>
-        {state === "ask"
-          ? <button className="btn" disabled={!val.trim()} onClick={check}>CHECK</button>
-          : <button className="btn ghost" onClick={next}>NEXT SERVICE →</button>}
+        {state === "ask" ? (
+          <button className="btn" disabled={!val.trim()} onClick={check}>
+            CHECK
+          </button>
+        ) : (
+          <button className="btn ghost" onClick={next}>
+            NEXT SERVICE →
+          </button>
+        )}
       </div>
     </div>
   );

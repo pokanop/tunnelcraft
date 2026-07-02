@@ -25,16 +25,23 @@ export function requestLogger() {
     const start = process.hrtime.bigint();
     res.on("finish", () => {
       const ms = Number(process.hrtime.bigint() - start) / 1e6;
-      const level = req.path.startsWith("/api/health") ? "debug"
-        : res.statusCode >= 500 ? "error"
-        : res.statusCode >= 400 ? "warn" : "info";
-      req.log[level]({
-        method: req.method,
-        path: req.path,
-        status: res.statusCode,
-        ms: Math.round(ms * 10) / 10,
-        ip: req.ip,
-      }, "request");
+      const level = req.path.startsWith("/api/health")
+        ? "debug"
+        : res.statusCode >= 500
+          ? "error"
+          : res.statusCode >= 400
+            ? "warn"
+            : "info";
+      req.log[level](
+        {
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          ms: Math.round(ms * 10) / 10,
+          ip: req.ip,
+        },
+        "request"
+      );
     });
     next();
   };

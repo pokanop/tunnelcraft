@@ -1,6 +1,8 @@
-/* Uses Node's built-in SQLite (node:sqlite, Node >= 22.5) — zero native dependencies.
+/* Built-in SQLite, runtime-adaptive — zero native dependencies.
+   Under Bun this uses bun:sqlite; under Node (>= 22.5) node:sqlite.
+   Both expose the same surface we use: prepare().get/.all/.run (run returns
+   { changes, lastInsertRowid }), exec(), close().
    To swap in better-sqlite3, only this file changes. */
-import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -9,7 +11,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
 
-export const db = new DatabaseSync(path.join(dataDir, "tunnelcraft.db"));
+const dbPath = path.join(dataDir, "tunnelcraft.db");
+export const db =
+  typeof Bun !== "undefined"
+    ? new (await import("bun:sqlite")).Database(dbPath, { create: true })
+    : new (await import("node:sqlite")).DatabaseSync(dbPath);
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
 
@@ -79,12 +85,17 @@ export function migrate(logger) {
   // have the full v2 schema but user_version 0. Detect and stamp them.
   let current = db.prepare("PRAGMA user_version").get().user_version;
   if (current === 0) {
-    const hasUsers = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+    const hasUsers = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+      .get();
     if (hasUsers) {
-      const hasVerified = db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name='email_verified'").get();
+      const hasVerified = db
+        .prepare("SELECT 1 FROM pragma_table_info('users') WHERE name='email_verified'")
+        .get();
       current = hasVerified ? 2 : 1;
       db.exec("PRAGMA user_version = " + current);
-      if (logger) logger.info({ adoptedVersion: current }, "migrate: adopted pre-migration database");
+      if (logger)
+        logger.info({ adoptedVersion: current }, "migrate: adopted pre-migration database");
     }
   }
   for (const m of MIGRATIONS) {
@@ -120,17 +131,23 @@ export function tx(fn) {
     db.exec("COMMIT");
     return out;
   } catch (e) {
-    try { db.exec("ROLLBACK"); } catch { /* already rolled back */ }
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* already rolled back */
+    }
     throw e;
   } finally {
     txDepth--;
   }
 }
 
-/* online backup: consistent snapshot via SQLite's backup API while the app runs */
+/* online backup: consistent snapshot while the app runs.
+   VACUUM INTO is engine-level SQLite and behaves identically under Bun and Node
+   (unlike the backup() helper, which is node:sqlite-only). Dest must not exist —
+   callers use timestamped filenames. */
 export async function backupTo(destPath) {
-  const { backup } = await import("node:sqlite");
-  await backup(db, destPath);
+  db.prepare("VACUUM INTO ?").run(destPath);
   return destPath;
 }
 
@@ -142,23 +159,35 @@ export function dbHealthy() {
 
 /* graceful close: checkpoint the WAL so nothing is left to replay on next boot */
 export function closeDb() {
-  try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* best effort */ }
+  try {
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  } catch {
+    /* best effort */
+  }
   db.close();
 }
 
 export const q = {
   setVerified: db.prepare("UPDATE users SET email_verified = 1 WHERE id = ?"),
   insertVerify: db.prepare("INSERT INTO verify_tokens (id, user_id, expires_at) VALUES (?, ?, ?)"),
-  verifyById: db.prepare("SELECT * FROM verify_tokens WHERE id = ? AND expires_at > datetime('now')"),
+  verifyById: db.prepare(
+    "SELECT * FROM verify_tokens WHERE id = ? AND expires_at > datetime('now')"
+  ),
   deleteVerify: db.prepare("DELETE FROM verify_tokens WHERE id = ?"),
   deleteUserVerifies: db.prepare("DELETE FROM verify_tokens WHERE user_id = ?"),
-  insertSession: db.prepare("INSERT INTO sessions (id, user_id, expires_at, user_agent) VALUES (?, ?, ?, ?)"),
+  insertSession: db.prepare(
+    "INSERT INTO sessions (id, user_id, expires_at, user_agent) VALUES (?, ?, ?, ?)"
+  ),
   sessionById: db.prepare("SELECT * FROM sessions WHERE id = ?"),
-  touchSession: db.prepare("UPDATE sessions SET last_seen = datetime('now'), expires_at = ? WHERE id = ?"),
+  touchSession: db.prepare(
+    "UPDATE sessions SET last_seen = datetime('now'), expires_at = ? WHERE id = ?"
+  ),
   deleteSession: db.prepare("DELETE FROM sessions WHERE id = ?"),
   deleteUserSessions: db.prepare("DELETE FROM sessions WHERE user_id = ?"),
   deleteOtherSessions: db.prepare("DELETE FROM sessions WHERE user_id = ? AND id != ?"),
-  listSessions: db.prepare("SELECT id, created_at, last_seen, user_agent FROM sessions WHERE user_id = ? ORDER BY last_seen DESC"),
+  listSessions: db.prepare(
+    "SELECT id, created_at, last_seen, user_agent FROM sessions WHERE user_id = ? ORDER BY last_seen DESC"
+  ),
   purgeExpired: db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')"),
   setPassword: db.prepare("UPDATE users SET password_hash = ? WHERE id = ?"),
   deleteUser: db.prepare("DELETE FROM users WHERE id = ?"),
@@ -166,9 +195,15 @@ export const q = {
   resetById: db.prepare("SELECT * FROM reset_tokens WHERE id = ? AND expires_at > datetime('now')"),
   deleteReset: db.prepare("DELETE FROM reset_tokens WHERE id = ?"),
   deleteUserResets: db.prepare("DELETE FROM reset_tokens WHERE user_id = ?"),
-  oauthAccount: db.prepare("SELECT user_id FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?"),
-  linkOauth: db.prepare("INSERT OR IGNORE INTO oauth_accounts (provider, provider_user_id, user_id) VALUES (?, ?, ?)"),
-  insertOauthUser: db.prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, '!oauth', ?)"),
+  oauthAccount: db.prepare(
+    "SELECT user_id FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?"
+  ),
+  linkOauth: db.prepare(
+    "INSERT OR IGNORE INTO oauth_accounts (provider, provider_user_id, user_id) VALUES (?, ?, ?)"
+  ),
+  insertOauthUser: db.prepare(
+    "INSERT INTO users (email, password_hash, display_name) VALUES (?, '!oauth', ?)"
+  ),
   userByEmail: db.prepare("SELECT * FROM users WHERE email = ?"),
   userById: db.prepare("SELECT id, email, display_name, email_verified FROM users WHERE id = ?"),
   insertUser: db.prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)"),

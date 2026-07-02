@@ -44,7 +44,8 @@ function recall(state) {
 
 export function beginOAuth(provider, res) {
   const client = oauthProviders[provider];
-  if (!client) return res.status(404).json({ error: "This sign-in method isn't configured on the server" });
+  if (!client)
+    return res.status(404).json({ error: "This sign-in method isn't configured on the server" });
   const state = generateState();
   let url;
   if (provider === "google") {
@@ -80,7 +81,11 @@ async function fetchIdentity(provider, tokens) {
   const emails = await er.json();
   const primary = emails.find((e) => e.primary && e.verified) || emails.find((e) => e.verified);
   if (!primary) throw new Error("no verified email on the GitHub account");
-  return { id: String(profile.id), email: primary.email.toLowerCase(), name: profile.name || profile.login || null };
+  return {
+    id: String(profile.id),
+    email: primary.email.toLowerCase(),
+    name: profile.name || profile.login || null,
+  };
 }
 
 /* Returns the local user row for this identity: existing link → that user;
@@ -112,19 +117,24 @@ export async function finishOAuth(provider, reqQuery, signToken, res) {
   const kept = recall(state);
   if (!kept) return fail("state expired or invalid — try again");
   try {
-    const tokens = provider === "google"
-      ? await client.validateAuthorizationCode(code, kept.verifier)
-      : await client.validateAuthorizationCode(code);
+    const tokens =
+      provider === "google"
+        ? await client.validateAuthorizationCode(code, kept.verifier)
+        : await client.validateAuthorizationCode(code);
     const identity = await fetchIdentity(provider, tokens);
     const user = upsertUser(provider, identity);
     const token = signToken(user);
     // Bridge page: store the token where the SPA's api client looks, then load the app.
-    res.type("html").send(
-      "<!doctype html><meta charset='utf-8'><script>" +
-      "localStorage.setItem('tunnelcraft:token'," + JSON.stringify(token) + ");" +
-      "location.replace('/');" +
-      "</script>Signing you in…"
-    );
+    res
+      .type("html")
+      .send(
+        "<!doctype html><meta charset='utf-8'><script>" +
+          "localStorage.setItem('tunnelcraft:token'," +
+          JSON.stringify(token) +
+          ");" +
+          "location.replace('/');" +
+          "</script>Signing you in…"
+      );
   } catch (e) {
     fail(e.message || "sign-in failed");
   }

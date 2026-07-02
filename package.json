@@ -2,12 +2,35 @@
   "name": "tunnelcraft",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
-    "setup": "npm --prefix server install && npm --prefix client install",
-    "dev:server": "npm --prefix server run dev",
-    "dev:client": "npm --prefix client run dev",
-    "build": "npm --prefix client run build",
-    "start": "npm --prefix server run start"
+    "dev": "bun run --filter '*' dev",
+    "dev:server": "bun run --cwd server dev",
+    "dev:client": "bun run --cwd client dev",
+    "build": "bun run --cwd client build",
+    "start": "bun run --cwd server start",
+    "test": "bun test",
+    "preview": "bun run --cwd client preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "bun run lint && bun run format:check",
+    "clean": "rm -rf node_modules client/node_modules server/node_modules client/dist"
   },
-  "engines": { "node": ">=22.5.0" }
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "prettier": "^3.4.2"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
 }

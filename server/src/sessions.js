@@ -10,7 +10,10 @@ function sha256(s) {
   return crypto.createHash("sha256").update(s).digest("hex");
 }
 function expiry() {
-  return new Date(Date.now() + SESSION_DAYS * 86_400_000).toISOString().replace("T", " ").slice(0, 19);
+  return new Date(Date.now() + SESSION_DAYS * 86_400_000)
+    .toISOString()
+    .replace("T", " ")
+    .slice(0, 19);
 }
 
 export function createSession(userId, userAgent) {
@@ -43,7 +46,10 @@ export function makeAuth(userById) {
     const sess = validateSession(secret);
     if (!sess) return res.status(401).json({ error: "Session expired — sign in again" });
     const user = userById.get(sess.user_id);
-    if (!user) { q.deleteSession.run(sess.id); return res.status(401).json({ error: "Account no longer exists" }); }
+    if (!user) {
+      q.deleteSession.run(sess.id);
+      return res.status(401).json({ error: "Account no longer exists" });
+    }
     req.user = user;
     req.sessionId = sess.id;
     next();
@@ -81,4 +87,10 @@ export function consumeResetToken(secret) {
 }
 
 /* Periodic cleanup */
-setInterval(() => { try { q.purgeExpired.run(); } catch { /* noop */ } }, 6 * 3600_000).unref();
+setInterval(() => {
+  try {
+    q.purgeExpired.run();
+  } catch {
+    /* noop */
+  }
+}, 6 * 3600_000).unref();

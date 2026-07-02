@@ -10,18 +10,54 @@ import { RUST_IDIOM } from "./rust-idiom.js";
 import { PLATFORM_A } from "./platform-a.js";
 import { PLATFORM_B } from "./platform-b.js";
 
-const POOL = [...CORE_MODULES, ...NET_A, ...NET_WIFI, ...NET_B, ...NET_C, ...NET_D, ...RUST_EXTRA, ...RUST_IDIOM, ...PLATFORM_A, ...PLATFORM_B];
+const POOL = [
+  ...CORE_MODULES,
+  ...NET_A,
+  ...NET_WIFI,
+  ...NET_B,
+  ...NET_C,
+  ...NET_D,
+  ...RUST_EXTRA,
+  ...RUST_IDIOM,
+  ...PLATFORM_A,
+  ...PLATFORM_B,
+];
 const byId = Object.fromEntries(POOL.map((m) => [m.id, m]));
 
 const ORDER = [
   // NET track (m01=N01, m02=N08, m03=N11 from core)
-  "m01","n02","n03","n04","n05","m02","n07","n08","m03","n10","n11","n12","n13",
+  "m01",
+  "n02",
+  "n03",
+  "n04",
+  "n05",
+  "m02",
+  "n07",
+  "n08",
+  "m03",
+  "n10",
+  "n11",
+  "n12",
+  "n13",
   // RUST track
-  "m04","r05","m05","m06","r04",
+  "m04",
+  "r05",
+  "m05",
+  "m06",
+  "r04",
   // TUNNEL track
-  "m07","m08","m09","m10",
+  "m07",
+  "m08",
+  "m09",
+  "m10",
   // SHIP track
-  "m11","p01","p02","p03","p04","m12","m13",
+  "m11",
+  "p01",
+  "p02",
+  "p03",
+  "p04",
+  "m12",
+  "m13",
 ];
 
 export const ALL_MODULES = ORDER.map((id) => {
@@ -32,24 +68,49 @@ export const ALL_MODULES = ORDER.map((id) => {
 
 export const TRACKS = [
   {
-    id: "net", code: "TRACK 1", title: "Network Fundamentals",
-    blurb: "Zero to certifiable: layers, Ethernet, IP & IPv6, subnetting, TCP internals, routing & BGP, NAT, DNS, TLS/QUIC, the toolbelt, and security doctrine.",
-    modules: ["m01","n02","n03","n04","n05","m02","n07","n08","m03","n10","n11","n12","n13"],
+    id: "net",
+    code: "TRACK 1",
+    title: "Network Fundamentals",
+    blurb:
+      "Zero to certifiable: layers, Ethernet, IP & IPv6, subnetting, TCP internals, routing & BGP, NAT, DNS, TLS/QUIC, the toolbelt, and security doctrine.",
+    modules: [
+      "m01",
+      "n02",
+      "n03",
+      "n04",
+      "n05",
+      "m02",
+      "n07",
+      "n08",
+      "m03",
+      "n10",
+      "n11",
+      "n12",
+      "n13",
+    ],
   },
   {
-    id: "rust", code: "TRACK 2", title: "Rust for Systems",
-    blurb: "Idiomatic Rust first — ownership, type-driven design, error craft — then async Tokio, network programming, and the professional tooling that makes it shippable.",
-    modules: ["m04","r05","m05","m06","r04"],
+    id: "rust",
+    code: "TRACK 2",
+    title: "Rust for Systems",
+    blurb:
+      "Idiomatic Rust first — ownership, type-driven design, error craft — then async Tokio, network programming, and the professional tooling that makes it shippable.",
+    modules: ["m04", "r05", "m05", "m06", "r04"],
   },
   {
-    id: "tunnel", code: "TRACK 3", title: "Tunnel Engineering",
+    id: "tunnel",
+    code: "TRACK 3",
+    title: "Tunnel Engineering",
     blurb: "TUN/TAP packet I/O, Noise & AEAD crypto, WireGuard in practice, and NAT traversal.",
-    modules: ["m07","m08","m09","m10"],
+    modules: ["m07", "m08", "m09", "m10"],
   },
   {
-    id: "ship", code: "TRACK 4", title: "Shipping a Real Client",
-    blurb: "Cross-platform engineering, then deep platform internals — Network Extension, wintun/WFP, policy routing, VpnService, proxies & PAC — the architecture of a production client, and the capstone.",
-    modules: ["m11","p01","p02","p03","p04","m12","m13"],
+    id: "ship",
+    code: "TRACK 4",
+    title: "Shipping a Real Client",
+    blurb:
+      "Cross-platform engineering, then deep platform internals — Network Extension, wintun/WFP, policy routing, VpnService, proxies & PAC — the architecture of a production client, and the capstone.",
+    modules: ["m11", "p01", "p02", "p03", "p04", "m12", "m13"],
   },
 ];
 

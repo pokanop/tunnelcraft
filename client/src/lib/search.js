@@ -27,22 +27,31 @@ function buildIndex() {
     for (const l of m.lessons) {
       out.push({
         kind: "lesson",
-        modId: m.id, code: m.code, modTitle: m.title,
-        tab: l.id, title: l.title,
+        modId: m.id,
+        code: m.code,
+        modTitle: m.title,
+        tab: l.id,
+        title: l.title,
         text: clean(l.blocks.map(blockText).join(" \n ")),
       });
     }
     for (const ex of m.exercises || []) {
       const extra = [
-        ex.prompt, ex.why,
+        ex.prompt,
+        ex.why,
         ...(ex.items || []),
         ...(ex.pairs || []).flatMap((p) => [p.t, p.d]),
         ex.code,
-      ].filter(Boolean).join(" \n ");
+      ]
+        .filter(Boolean)
+        .join(" \n ");
       out.push({
         kind: "lab",
-        modId: m.id, code: m.code, modTitle: m.title,
-        tab: "lab", title: ex.title,
+        modId: m.id,
+        code: m.code,
+        modTitle: m.title,
+        tab: "lab",
+        title: ex.title,
         text: clean(extra),
       });
     }
@@ -50,8 +59,11 @@ function buildIndex() {
       const qtext = m.quiz.questions.map((q) => [q.q, ...q.opts, q.why].join(" \n ")).join(" \n ");
       out.push({
         kind: "quiz",
-        modId: m.id, code: m.code, modTitle: m.title,
-        tab: "quiz", title: m.title + " checkpoint",
+        modId: m.id,
+        code: m.code,
+        modTitle: m.title,
+        tab: "quiz",
+        title: m.title + " checkpoint",
         text: clean(qtext),
       });
     }
@@ -80,7 +92,10 @@ function snippet(text, lcText, term, width = 150) {
 
 /* AND-match every query token; score = weighted hit locations */
 export function search(query, limit = 20) {
-  const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length >= 2);
   if (!terms.length) return [];
   const results = [];
   for (const e of INDEX) {
@@ -91,10 +106,16 @@ export function search(query, limit = 20) {
       const inTitle = e.lcTitle.includes(t);
       const inMod = e.lcMod.includes(t);
       const inText = e.lcText.includes(t);
-      if (!inTitle && !inText && !inMod) { ok = false; break; }
+      if (!inTitle && !inText && !inMod) {
+        ok = false;
+        break;
+      }
       if (inTitle) score += 12;
       if (inMod) score += 6;
-      if (inText) { score += 2; if (!firstBodyTerm) firstBodyTerm = t; }
+      if (inText) {
+        score += 2;
+        if (!firstBodyTerm) firstBodyTerm = t;
+      }
     }
     if (!ok) continue;
     if (e.kind === "lesson") score += 2; // lessons are the primary jump target
