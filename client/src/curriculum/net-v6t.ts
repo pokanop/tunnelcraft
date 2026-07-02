@@ -67,6 +67,34 @@ export const NET_V6T: Module[] = [
             p: "NAT64 has a bootstrap problem: clients only send to the magic prefix if something *gives them* prefix-embedded addresses. That something is **DNS64** (RFC 6147), a resolver behavior: when a client asks for AAAA and the name has real IPv6 addresses, answer honestly; when the name is v4-only, take its A record, embed it in the NAT64 prefix, and return the synthesized AAAA as if it were real. The client believes it's talking to a v6 host; the resolver and gateway conspire to keep the illusion airtight. N12 taught you DNS as a distributed database — DNS64 is that database *editorializing*.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "DNS64 synthesizes an answer",
+              actors: [
+                { id: "c", label: "v6-only client", tone: "l7" },
+                { id: "r", label: "DNS64 resolver", tone: "acc" },
+                { id: "a", label: "Authoritative", tone: "dim" },
+              ],
+              steps: [
+                { from: "c", to: "r", label: "AAAA? legacy.example", tone: "l7" },
+                { from: "r", to: "a", label: "AAAA?", tone: "dim" },
+                { from: "a", to: "r", label: "no AAAA", sub: "v4-only name", tone: "dim" },
+                { from: "r", to: "a", label: "A?", tone: "dim" },
+                { from: "a", to: "r", label: "A 203.0.113.7", tone: "l3" },
+                { note: "embed the A record in the NAT64 prefix", tone: "acc" },
+                {
+                  from: "r",
+                  to: "c",
+                  label: "AAAA 64:ff9b::cb00:7107",
+                  sub: "synthesized — signed by nobody",
+                  tone: "acc",
+                },
+              ],
+              caption:
+                "An honest 'no AAAA' becomes a helpful lie that steers the client into the NAT64 — which is why DNSSEC validators and pinned resolvers fall through the illusion.",
+            },
+          },
+          {
             p: "Lies have failure modes, and DNS64's are exactly where sophisticated clients live. **DNSSEC**: a synthesized AAAA is signed by nobody, so a validating stub that sets DO+CD and checks signatures itself (N12) gets the honest answer — no AAAA exists — and the connection never happens. Security working as designed, connectivity broken as designed. **Resolver bypass**: DNS64 lives in the *carrier's* resolver, so an app pinned to its own DoH/DoT resolver — or a VPN pushing in-tunnel DNS — gets real, unsynthesized answers, and its v4-only destinations become unreachable without a CLAT. And the classic from N14: an **IPv4 literal** never touches DNS at all, so nothing gets the chance to lie helpfully.",
           },
           {
@@ -85,6 +113,22 @@ export const NET_V6T: Module[] = [
         blocks: [
           {
             p: "DNS64 saves hostname users; nothing so far saves the app that opens an AF_INET socket to a literal. **464XLAT** (RFC 6877) closes that last gap with a relay of two translators. On the phone, the **CLAT** (customer-side) presents a fake IPv4 interface — addressed from `192.0.0.0/29`, reserved for exactly this — and *statelessly* (RFC 7915) translates each v4 packet into v6: source becomes a dedicated v6 address of the phone's, destination becomes the prefix-embedded alias. In the carrier core, the **PLAT** (provider-side) is just stateful NAT64: strip the prefix, allocate a shared public v4:port, emit a native v4 packet. Read the name right to left: v4 (app) over 6 (network) to 4 (internet) — 464, by translation (XLAT).",
+          },
+          {
+            diagram: {
+              kind: "flow",
+              title: "464XLAT: the two-translator relay",
+              nodes: [
+                { label: "v4 app", sub: "192.0.0.x", tone: "l7" },
+                { label: "CLAT", sub: "on-phone · stateless", tone: "acc" },
+                { label: "v6-only core", sub: "native IPv6", tone: "l3" },
+                { label: "PLAT", sub: "stateful NAT64", tone: "acc" },
+                { label: "v4 server", sub: "203.0.113.7", tone: "l7" },
+              ],
+              arrows: ["v4", "v6 · dst=prefix+v4", "v6", "v4"],
+              caption:
+                "4-over-6-to-4: stateless where the mapping is one-to-one (CLAT), stateful only where subscribers share addresses (PLAT).",
+            },
           },
           {
             p: "The state lives exactly where it must and nowhere else. The CLAT can be stateless because its mapping is one-to-one — this phone's private v4 to this phone's dedicated v6 — no ports shared, nothing to remember, and with a *checksum-neutral* choice of v6 address (pick the interface bits so the v6 addresses sum to the same checksum contribution as the v4 ones) the translator doesn't even have to touch transport checksums. The PLAT holds the per-flow bindings, because that's where thousands of subscribers converge onto a few public addresses — N11's port-sharing arithmetic, one place in the network instead of millions.",

@@ -258,6 +258,38 @@ unsafe impl Send for RingHandle {}
             p: "**`Acquire`/`Release`** is the workhorse pair, and it is one mechanism, not two: a **Release store publishes** everything its thread did before it; an **Acquire load that observes that store** is guaranteed to see all of it. That guarantee is the **happens-before** edge — the fundamental relation of the whole model. Release is throwing the baton with everything you've done taped to it; Acquire is catching it. A Release store nobody Acquire-loads publishes to no one; an Acquire load of a Relaxed store catches nothing. The pairing is the product.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "happens-before: Release throws, Acquire catches",
+              caption:
+                "The Acquire load that observes the Release store is guaranteed to see every write made before it — that edge is the entire proof.",
+              actors: [
+                { id: "prod", label: "producer", tone: "acc" },
+                { id: "slot", label: "shared slot", sub: "data + AtomicBool" },
+                { id: "cons", label: "consumer", tone: "ok" },
+              ],
+              steps: [
+                { from: "prod", to: "slot", label: "data = 0xC0FFEE", sub: "plain write" },
+                {
+                  from: "prod",
+                  to: "slot",
+                  label: "store(true, Release)",
+                  sub: "publishes prior writes",
+                  tone: "acc",
+                },
+                { note: "happens-before edge" },
+                { from: "cons", to: "slot", label: "load(Acquire)", dashed: true },
+                {
+                  from: "slot",
+                  to: "cons",
+                  label: "true — data visible",
+                  sub: "read sees 0xC0FFEE",
+                  tone: "ok",
+                },
+              ],
+            },
+          },
+          {
             code: {
               lang: "rust",
               title: "publish, then flag: a happens-before edge you can run",
@@ -589,6 +621,21 @@ pub extern "C" fn tc_set_logger(f: TcLogFn, ctx: *mut c_void) {
           },
           {
             p: "The handle: `pub struct Tunnel { ... }` stays a normal Rust struct — **not** `repr(C)`, never crossed by value, its fields invisible to the shell. What crosses is `*mut Tunnel`, an opaque token the foreign side can store and pass back but never dereference — the C header says `typedef struct Tunnel Tunnel;` and nothing more. Construction is `Box::into_raw(Box::new(tunnel))`: ownership formally leaves Rust and lives in the Swift/Kotlin object holding the pointer. Destruction is the paired `tunnel_free`, whose `Box::from_raw` takes ownership back so `Drop` runs. `tunnel_new`/`tunnel_free` are your API's `malloc`/`free` — and lesson 6's law applies: who allocates must free.",
+          },
+          {
+            diagram: {
+              kind: "flow",
+              title: "the opaque handle crossing the C ABI",
+              caption:
+                "The shell stores a token it can never dereference; every entry point re-proves the contract before touching real Rust state.",
+              nodes: [
+                { label: "Swift shell", sub: "holds *mut Tunnel" },
+                { label: "C ABI", sub: 'extern "C" + repr(C)', tone: "acc" },
+                { label: "tunnel-ffi", sub: "null + catch_unwind" },
+                { label: "Tunnel", sub: "plain Rust struct", tone: "ok" },
+              ],
+              arrows: ["call", "check + catch", "scoped &mut"],
+            },
           },
           {
             code: {

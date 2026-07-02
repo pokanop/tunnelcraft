@@ -8,7 +8,7 @@ import type { ExamQuestion } from "../lib/exam";
 import type { Progress } from "../lib/progress";
 import type { PublicUser } from "../lib/api";
 import type { Track } from "../curriculum/types";
-import type { Route } from "../App";
+import type { Route } from "../lib/nav";
 
 /* Final exam: a timed, randomized paper drawn fresh each sitting from the
    track's full question pool. Pass ≥ EXAM_PASS% → printable certificate.

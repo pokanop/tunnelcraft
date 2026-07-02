@@ -20,6 +20,22 @@ export const NET_D: Module[] = [
             p: "Amateurs run commands; professionals run a **search strategy**. The layered model you learned in N01 is also a debugging framework: every failure lives at *some* layer, and each tool tests a specific one. Two classic strategies: **bottom-up** (link up? IP assigned? gateway reachable? DNS resolving? service answering?) when nothing works, and **divide-and-conquer** — start at L3 with a ping and let the result cut the search space in half — when something works partially.",
           },
           {
+            diagram: {
+              kind: "flow",
+              title: "the bottom-up sweep",
+              nodes: [
+                { label: "Link up?", sub: "L2 · carrier/Wi-Fi", tone: "l2" },
+                { label: "IP + gateway?", sub: "L3 · addr, ping gw", tone: "l3" },
+                { label: "Internet?", sub: "L3 · ping 1.1.1.1", tone: "l3" },
+                { label: "Name resolves?", sub: "L7 · dig", tone: "l7" },
+                { label: "Service answers?", sub: "L4/L7 · curl -v", tone: "l4" },
+              ],
+              arrows: ["ok", "ok", "ok", "ok"],
+              caption:
+                "Each check tests exactly one layer — the first failure names your suspect; every tool after that just confirms it.",
+            },
+          },
+          {
             ul: [
               "Ping by **IP** works but by **name** fails → the network is fine; it's DNS. Half your career's tickets end here.",
               "Ping works but the **port** times out → L3 is fine; a firewall or dead service at L4+.",
@@ -205,6 +221,42 @@ export const NET_D: Module[] = [
         blocks: [
           {
             p: "A **stateless** filter judges each packet alone against ACLs — fast, dumb, and awkward at 'allow replies to my outbound traffic.' A **stateful** firewall tracks connections in exactly the conntrack table you met in N08/N11: an outbound SYN creates an entry; inbound packets are admitted *only if they match known state*. That single idea — replies to what I started, nothing unsolicited — is 90% of what a firewall does for you, and NAT's accidental version of it is why people mistake NAT for security. Say it precisely: **NAT is not a security feature**; the stateful filtering that usually accompanies it is.",
+          },
+          {
+            diagram: {
+              kind: "seq",
+              title: "stateful filtering: replies only",
+              actors: [
+                { id: "h", label: "Host", tone: "l7" },
+                { id: "fw", label: "Firewall", sub: "conntrack", tone: "acc" },
+                { id: "net", label: "Internet", tone: "dim" },
+              ],
+              steps: [
+                { note: "outbound creates state" },
+                { from: "h", to: "fw", label: "SYN out", tone: "l4" },
+                {
+                  from: "fw",
+                  to: "net",
+                  label: "forwarded",
+                  sub: "entry: h:5061 ↔ srv:443",
+                  tone: "l4",
+                },
+                { note: "replies match the entry" },
+                { from: "net", to: "fw", label: "SYN-ACK", tone: "ok" },
+                { from: "fw", to: "h", label: "admitted", sub: "matches known state", tone: "ok" },
+                { note: "unsolicited gets silence", tone: "bad" },
+                {
+                  from: "net",
+                  to: "fw",
+                  label: "stray SYN",
+                  sub: "no entry → DROP",
+                  tone: "bad",
+                  dashed: true,
+                },
+              ],
+              caption:
+                "Replies to what I started, nothing unsolicited — the stateful filter people mistakenly credit to NAT.",
+            },
           },
           {
             p: "Policy doctrine: **default deny**. Enumerate what's allowed; drop the rest — because you can list your legitimate services, but never every attack. The dual decision is **DROP vs REJECT**: drop is silence (a scanner sees 'filtered' and wastes time on timeouts), reject is an RST/ICMP refusal (faster for legitimate users to fail, more informative to attackers). Perimeter convention: drop toward the outside, reject toward the inside.",

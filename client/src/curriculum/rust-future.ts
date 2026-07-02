@@ -86,6 +86,25 @@ enum ProbeFuture<'a> {
             p: "Every call to `poll` drives the machine as far as it can go: it polls the inner future of the current state; on `Ready` it executes your code up to the next `.await` and rolls into the next state; on `Pending` it parks and returns `Pending` itself. `.await` points are the **only** places an async fn can pause — between them, your code runs as plain, uninterrupted Rust on the worker thread (a fact lesson 6 turns into a starvation war story).",
           },
           {
+            diagram: {
+              kind: "state",
+              title: "ProbeFuture: what poll() drives",
+              caption:
+                "Each variant stores only the locals alive at that .await; a Pending inner future parks the machine in its current state until the next poll.",
+              states: [
+                { id: "start", label: "Start", x: 0, y: 0 },
+                { id: "send", label: "AwaitSend", tone: "acc", x: 1, y: 0 },
+                { id: "recv", label: "AwaitRecv", tone: "acc", x: 2, y: 0 },
+                { id: "done", label: "Done", tone: "ok", x: 3, y: 0 },
+              ],
+              edges: [
+                { from: "start", to: "send", label: "first poll" },
+                { from: "send", to: "recv", label: "send Ready" },
+                { from: "recv", to: "done", label: "recv Ready(n)", tone: "ok" },
+              ],
+            },
+          },
+          {
             p: "Second consequence, and it trips every engineer arriving from JavaScript: **futures are lazy**. A JS promise starts executing the moment you create it; a Rust future is a struct in the `Start` state and nothing more. `let f = handshake(peer);` sends no packet, binds no socket, does *nothing* until first polled. That's what makes `select!` (R03) able to drop the losing branch — an unpolled or half-polled future is just a value you can discard.",
           },
           {
@@ -153,6 +172,34 @@ fn main() {
           },
           {
             p: "State the **poll contract** precisely, because everything in this module hangs off it: *returning `Pending` obligates you to have arranged, before returning, that the waker from this `Context` will be woken when the future can make progress.* Woken means someone — a timer thread, an IO driver, another task releasing a lock — calls `wake()` on it. The executor's side of the deal: a wake puts your task back on the ready queue and it gets polled again. No wake, no re-poll, ever. Pending is not 'check back later'; it is 'I will call you.'",
+          },
+          {
+            diagram: {
+              kind: "seq",
+              title: "the poll contract, one round trip",
+              caption:
+                "No wake, no re-poll — ever. Pending is only legal because the waker was stashed with the event source first.",
+              actors: [
+                { id: "exec", label: "executor", tone: "acc" },
+                { id: "fut", label: "future" },
+                { id: "src", label: "event source", sub: "timer / IO driver" },
+              ],
+              steps: [
+                { from: "exec", to: "fut", label: "poll(cx)" },
+                {
+                  from: "fut",
+                  to: "src",
+                  label: "stash waker",
+                  sub: "cx.waker().clone()",
+                  dashed: true,
+                },
+                { from: "fut", to: "exec", label: "Poll::Pending", tone: "dim" },
+                { note: "task sleeps — zero CPU" },
+                { from: "src", to: "exec", label: "wake()", sub: "requeue the task", tone: "acc" },
+                { from: "exec", to: "fut", label: "poll(cx)" },
+                { from: "fut", to: "exec", label: "Poll::Ready(v)", tone: "ok" },
+              ],
+            },
           },
           {
             p: "So what is a `Waker`? A cheap, `Clone + Send + Sync` handle meaning 'this specific task.' Calling `wake()` doesn't run any of your code — it tells the *executor* 'that task can make progress; schedule it.' Crucially it's type-erased: the same `Waker` API works whether the executor is tokio's work-stealing scheduler, lesson 5's toy channel loop, or a thread waiting to be unparked. The future neither knows nor cares what waking actually does.",

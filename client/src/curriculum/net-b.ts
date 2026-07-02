@@ -23,6 +23,45 @@ export const NET_B: Module[] = [
             p: "Closing is the underrated half. Each direction closes independently: FIN → ACK, FIN → ACK (four packets, sometimes the middle two coalesce). The side that closes *first* lands in **TIME_WAIT** and lingers there ~60 s, on purpose: it absorbs stray retransmitted packets from the old connection so they can't corrupt a new connection reusing the same port pair. Thousands of TIME_WAIT sockets on a busy server are *normal*, not a leak — a fact that has saved many an on-call engineer from 'fixing' the wrong thing.",
           },
           {
+            diagram: {
+              kind: "state",
+              title: "TCP connection lifecycle",
+              caption:
+                "Left ladder: active open and close — the first closer inherits TIME_WAIT, a ~60 s quarantine against stray old packets. Right ladder: the passive side; a CLOSE_WAIT that never leaves means your app forgot to close().",
+              states: [
+                { id: "synsent", label: "SYN_SENT", x: 0, y: 0, tone: "l4" },
+                { id: "closed", label: "CLOSED", x: 1, y: 0, tone: "dim" },
+                { id: "listen", label: "LISTEN", x: 2, y: 0 },
+                { id: "synrecv", label: "SYN_RECV", x: 3, y: 0, tone: "l4" },
+                { id: "estab", label: "ESTABLISHED", x: 1, y: 1, tone: "ok" },
+                { id: "finwait", label: "FIN_WAIT", x: 0, y: 2, tone: "acc" },
+                { id: "timewait", label: "TIME_WAIT", x: 1, y: 2, tone: "acc" },
+                { id: "closewait", label: "CLOSE_WAIT", x: 2, y: 2 },
+                { id: "lastack", label: "LAST_ACK", x: 3, y: 2 },
+              ],
+              edges: [
+                { from: "closed", to: "synsent", label: "connect / SYN", tone: "l4" },
+                { from: "closed", to: "listen", label: "listen()" },
+                { from: "listen", to: "synrecv", label: "SYN / SYN+ACK", tone: "l4" },
+                { from: "synsent", to: "estab", label: "SYN+ACK / ACK", tone: "ok" },
+                { from: "synrecv", to: "estab", label: "ACK", tone: "ok" },
+                { from: "estab", to: "finwait", label: "close / FIN", tone: "acc" },
+                { from: "finwait", to: "timewait", label: "recv FIN / ACK", tone: "acc" },
+                { from: "estab", to: "closewait", label: "recv FIN / ACK" },
+                { from: "closewait", to: "lastack", label: "close / FIN" },
+                { from: "lastack", to: "closed", label: "recv ACK", bend: -30 },
+                {
+                  from: "timewait",
+                  to: "closed",
+                  label: "~60 s",
+                  tone: "acc",
+                  dashed: true,
+                  bend: 130,
+                },
+              ],
+            },
+          },
+          {
             p: "**RST** is the rude exit: no handshake, just 'this conversation does not exist.' You receive RST when connecting to a closed port (that's how `Connection refused` happens), when a peer crashes and reboots mid-connection, or when a middlebox decides to censor you. RST-on-connect vs *silence*-on-connect is a diagnostic fork: refused means a host said no; timeout means a firewall ate the packet (N16 makes this a method).",
           },
         ],
@@ -67,6 +106,33 @@ export const NET_B: Module[] = [
         blocks: [
           {
             p: "rwnd protects the receiver; the **congestion window (cwnd)** protects the *network* — the sender's own estimate of how much the path can absorb. Effective limit = min(rwnd, cwnd). Classic behavior: **slow start** (begin ~tiny, double every RTT — exponential, despite the name) until loss or threshold, then **congestion avoidance** (grow linearly, and on loss, cut multiplicatively — AIMD). The result is TCP's sawtooth: probe up, back off, probe up.",
+          },
+          {
+            diagram: {
+              kind: "state",
+              title: "The congestion control loop",
+              caption:
+                "Slow start doubles cwnd every RTT; avoidance adds ~1 MSS per RTT; loss cuts multiplicatively — that alternation is the sawtooth. An RTO timeout is drastic enough to start over from scratch.",
+              states: [
+                { id: "ss", label: "Slow start", x: 0, y: 0, tone: "acc" },
+                { id: "ca", label: "Congestion avoidance", x: 2, y: 0, tone: "ok" },
+                { id: "fr", label: "Fast recovery", x: 1, y: 1, tone: "acc2" },
+              ],
+              edges: [
+                { from: "ss", to: "ca", label: "cwnd ≥ ssthresh" },
+                {
+                  from: "ca",
+                  to: "ss",
+                  label: "RTO timeout",
+                  tone: "bad",
+                  dashed: true,
+                  bend: -34,
+                },
+                { from: "ss", to: "fr", label: "3 dup ACKs", tone: "bad" },
+                { from: "ca", to: "fr", label: "3 dup ACKs", tone: "bad", bend: 28 },
+                { from: "fr", to: "ca", label: "cwnd halved", tone: "ok", bend: 28 },
+              ],
+            },
           },
           {
             p: "Loss-based control (Reno lineage; Linux's default **CUBIC** is a refined descendant) reads packet loss as the congestion signal. Its failure mode is **bufferbloat**: oversized router buffers delay the loss signal, so senders keep pushing, queues grow, and latency balloons to seconds while throughput looks 'fine' — the reason video calls die when someone uploads a file. **BBR** (Google) changes the philosophy: model the path's actual bottleneck bandwidth and minimum RTT, pace packets to *that*, don't wait for loss. Different senders on one bottleneck are effectively negotiating without speaking.",
@@ -366,6 +432,21 @@ export const NET_B: Module[] = [
             p: "Within one protocol, its own **metric** breaks the remaining tie: OSPF sums link costs (bandwidth-derived), BGP runs a policy gauntlet you'll meet in lesson 3. So the full mental model: *most specific prefix → most trusted source → best metric*. Every routing conversation you'll ever have compiles down to those three tiebreaks.",
           },
           {
+            diagram: {
+              kind: "flow",
+              title: "How a route wins",
+              caption:
+                "Three tiebreaks in unbreakable order: most specific prefix, then most trusted source, then the protocol's own metric. A /25 from lowly OSPF still beats a /24 from anything.",
+              nodes: [
+                { label: "Longest prefix", sub: "/24 beats /16 beats /0", tone: "l3" },
+                { label: "Admin distance", sub: "connected 0 · static 1 · OSPF ~110", tone: "acc" },
+                { label: "Protocol metric", sub: "OSPF cost · BGP policy", tone: "acc2" },
+                { label: "Forwarding table", tone: "ok" },
+              ],
+              arrows: ["tie", "tie", "winner"],
+            },
+          },
+          {
             p: "**Static vs dynamic** is an economics question. Statics are perfect where topology is trivial and change is rare — a branch office with one exit needs exactly one static default. Dynamic protocols earn their complexity when there are *redundant paths that must fail over without a human*: their actual product isn't routes, it's **reaction to change**.",
           },
         ],
@@ -396,6 +477,26 @@ export const NET_B: Module[] = [
           },
           {
             p: "And policy beats distance, by design. Routes are filtered and ranked by **business relationships**: prefer routes from customers (they pay you), then peers (free swap), then providers (you pay). LOCAL_PREF encodes that ranking and is consulted *before* AS_PATH length. The result: internet traffic follows money and contracts, and 'suboptimal' paths are usually someone's revenue decision, not a bug. eBGP speaks between ASes; iBGP redistributes those decisions inside one.",
+          },
+          {
+            diagram: {
+              kind: "topo",
+              title: "Policy beats path length",
+              caption:
+                "Both neighbors announce the same prefix. The provider path is shorter, but customer routes earn revenue — LOCAL_PREF is consulted before AS_PATH, so traffic takes the longer, paid-for road.",
+              nodes: [
+                { id: "you", label: "Your AS", sub: "AS 65001", x: 0, y: 1, tone: "acc" },
+                { id: "prov", label: "Provider", sub: "you pay them", x: 1, y: 0, tone: "dim" },
+                { id: "cust", label: "Customer", sub: "they pay you", x: 1, y: 2, tone: "ok" },
+                { id: "dst", label: "203.0.113.0/24", x: 2, y: 1, shape: "cloud" },
+              ],
+              links: [
+                { from: "you", to: "prov", label: "LOCAL_PREF 80", tone: "dim", dashed: true },
+                { from: "prov", to: "dst", label: "2 ASes", tone: "dim", dashed: true },
+                { from: "you", to: "cust", label: "LOCAL_PREF 200", tone: "ok" },
+                { from: "cust", to: "dst", label: "4 ASes", tone: "ok" },
+              ],
+            },
           },
           {
             p: "BGP's trust model is its scar tissue: historically, routers believed whatever they were told. A misconfigured AS announcing someone else's prefix — a **route leak or hijack** — has repeatedly vacuumed real traffic into black holes (the YouTube/Pakistan incident is the canonical story). **RPKI** retrofits cryptographic origin validation ('is this AS authorized to announce this prefix?'), and adoption keeps climbing, but path validation remains unsolved — one more reason end-to-end encryption (T02) is the layer you actually rely on.",

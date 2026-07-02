@@ -23,6 +23,46 @@ export const PLATFORM_A: Module[] = [
             p: "Structurally a provider is an **extension**: a separate process with its own binary, sandbox, and lifecycle, shipped inside your app. On iOS that's an app extension, full stop; on macOS you typically ship a **system extension** (activated via OSSystemExtensionRequest, survives your app quitting, requires one-time user approval in System Settings). The consequence is architectural: your UI and your tunnel are *different programs* sharing nothing but IPC and an app-group container — the S01 daemon/UI split isn't a design choice on Apple, it's the platform's shape.",
           },
           {
+            diagram: {
+              kind: "topo",
+              title: "one VPN, two programs",
+              caption:
+                "UI and tunnel share nothing but IPC and an app-group container: the app saves config and asks for a start; the OS launches the extension and owns the plumbing.",
+              nodes: [
+                {
+                  id: "app",
+                  label: "Container App",
+                  sub: "UI + saved config",
+                  tone: "l7",
+                  x: 0,
+                  y: 0,
+                },
+                {
+                  id: "ext",
+                  label: "Provider Ext",
+                  sub: "startTunnel · packetFlow",
+                  tone: "acc",
+                  x: 2,
+                  y: 0,
+                },
+                {
+                  id: "os",
+                  label: "OS",
+                  sub: "utun · routes · DNS",
+                  tone: "l3",
+                  x: 1,
+                  y: 1,
+                  shape: "cloud",
+                },
+              ],
+              links: [
+                { from: "app", to: "ext", label: "sendProviderMessage", tone: "dim", dashed: true },
+                { from: "app", to: "os", label: "save + start" },
+                { from: "os", to: "ext", label: "launch", tone: "acc" },
+              ],
+            },
+          },
+          {
             p: "Everything is gated by **entitlements** (`com.apple.developer.networking.networkextension`, with per-provider-class values) baked into provisioning profiles. No entitlement, no startTunnel. The container app manages configuration through **NETunnelProviderManager**: save a configuration (the VPN appears in Settings), then `startVPNTunnel()`. Custom control messages flow over `NETunnelProviderSession.sendProviderMessage` — S01's gRPC-flavored control plane becomes 'small serialized messages over Apple's IPC.'",
           },
         ],
@@ -44,6 +84,22 @@ export const PLATFORM_A: Module[] = [
           },
           {
             p: "`packetFlow` is your TUN device (T01) wearing Swift clothes: `readPackets` yields outbound IP packets, `writePackets` injects decrypted inbound ones — exactly where the uniffi boundary (S01) hands buffers to the Rust core. The brutal constraint nobody forgets after hitting it: **the iOS extension memory limit (~50 MB)** — exceed it and the OS kills the tunnel mid-flight. This is why lean cores like boringtun matter, why you reuse buffers (R02/R05), and why 'just cache it' is not an option in the provider. Add `wake`/`sleep` overrides and **NEOnDemandRules** (auto-connect when leaving trusted Wi-Fi — posture's little cousin) and you have the full lifecycle.",
+          },
+          {
+            diagram: {
+              kind: "flow",
+              title: "the packet path on Apple",
+              caption:
+                "readPackets hands you outbound plaintext IP; writePackets injects decrypted inbound — the entire VPN is this loop, run inside a ~50 MB budget.",
+              nodes: [
+                { label: "App", sub: "any process", tone: "l7" },
+                { label: "Kernel", sub: "routes → utun", tone: "l3" },
+                { label: "packetFlow", sub: "readPackets", tone: "acc" },
+                { label: "Rust core", sub: "encrypt", tone: "acc" },
+                { label: "Wire", sub: "outer UDP", tone: "l4" },
+              ],
+              arrows: ["send()", "IP pkts", "FFI", "sendto()"],
+            },
           },
         ],
       },
@@ -199,6 +255,29 @@ export const PLATFORM_A: Module[] = [
             p: "The canonical **fail-closed kill switch** (S01's doctrine, now with real parts) is four filters: (1) block everything outbound, low weight; (2) permit traffic on the tunnel interface's LUID, higher weight; (3) permit your daemon's own process (by application path) to the VPN endpoint's IP:port — the outer UDP must escape; (4) permit loopback and DHCP. Order by weight, not by prayer. The detail that separates toy from product: **persistent vs dynamic filters**. Dynamic filters die with your session (crash = leak — the exact failure S01 warned about); persistent/boot-time filters survive process death and reboot, which is what fail-closed actually means on Windows.",
           },
           {
+            diagram: {
+              kind: "stack",
+              title: "kill-switch arbitration, one sublayer",
+              caption:
+                "Highest weight wins: block-all is the floor, and each permit outranks it for exactly one escape hatch. Mark the filters persistent or a crash reopens everything.",
+              cols: [
+                {
+                  title: "your sublayer — weight ↓",
+                  cells: [
+                    {
+                      label: "permit daemon → endpoint",
+                      sub: "app path · UDP 51820",
+                      tone: "ok",
+                    },
+                    { label: "permit tunnel LUID", sub: "everything via wintun", tone: "acc" },
+                    { label: "permit loopback + DHCP", tone: "ok" },
+                    { label: "block all outbound", sub: "the fail-closed floor", tone: "bad" },
+                  ],
+                },
+              ],
+            },
+          },
+          {
             p: "WFP is also Windows' **content-filtering and per-app** surface: the ALE layers expose the connecting *application*, so 'block app X entirely' or 'only app Y may use the tunnel' are ordinary filters — this is how per-app split tunneling is built here (P01's NEAppRule equivalent, but assembled by hand). The cost of all this power is symmetrical: a wrong block-all filter with persistence briefly bricks networking on every machine you manage. Test on VMs; ship an emergency-restore CLI.",
           },
         ],
@@ -215,10 +294,41 @@ export const PLATFORM_A: Module[] = [
             p: "Then Windows adds its own flavor of DNS chaos: the resolver is **multi-homed and impatient** — historically it races queries across *every* interface's DNS servers and takes the fastest answer, meaning a perfect route table still leaks names to the LAN resolver (N11's leak lesson, mechanized). The professional fixes, in escalating order: set the tunnel adapter's DNS and interface priority; use **NRPT** (Name Resolution Policy Table) rules to pin domains — or all names — to specific servers (Windows' split-DNS instrument, group-policy friendly); and belt-and-suspenders, WFP filters blocking ports 53/853 everywhere except the tunnel. Production clients on Windows do all three.",
           },
           {
-            code: {
-              lang: "text",
+            diagram: {
+              kind: "topo",
               title: "the table a full-tunnel client leaves behind",
-              body: "> route print -4   (abridged)\n  0.0.0.0/0        gw 192.168.1.1   if eth0   metric 25   <- original, untouched\n  0.0.0.0/1        gw on-link       if MyVPN  metric 5    <- /1 trick, tunnel\n  128.0.0.0/1      gw on-link       if MyVPN  metric 5    <- /1 trick, tunnel\n  203.0.113.7/32   gw 192.168.1.1   if eth0   metric 25   <- endpoint pinned out physical\n\nverify like N16 taught: which route wins for 8.8.8.8?\nlongest prefix: /1 beats /0 -> tunnel. for 203.0.113.7? /32 -> physical.",
+              caption:
+                "Verify like N16 taught — longest prefix decides: the /1 pair beats any /0 without touching the original default, and the /32 pin keeps the outer UDP out of its own tunnel.",
+              nodes: [
+                { id: "dst", label: "dst 8.8.8.8", tone: "l7", x: 0, y: 0, shape: "round" },
+                { id: "ep", label: "dst 203.0.113.7", tone: "l4", x: 0, y: 2, shape: "round" },
+                { id: "r1", label: "0.0.0.0/1 ×2", sub: "metric 5", tone: "acc", x: 1, y: 0 },
+                {
+                  id: "r0",
+                  label: "0.0.0.0/0",
+                  sub: "metric 25 · untouched",
+                  tone: "dim",
+                  x: 1,
+                  y: 1,
+                },
+                {
+                  id: "r32",
+                  label: "203.0.113.7/32",
+                  sub: "endpoint pin",
+                  tone: "l3",
+                  x: 1,
+                  y: 2,
+                },
+                { id: "tun", label: "MyVPN", sub: "wintun", tone: "acc", x: 2, y: 0 },
+                { id: "eth", label: "eth0", sub: "gw 192.168.1.1", tone: "l3", x: 2, y: 2 },
+              ],
+              links: [
+                { from: "dst", to: "r1", label: "/1 beats /0", tone: "acc" },
+                { from: "r1", to: "tun", tone: "acc" },
+                { from: "ep", to: "r32", label: "/32 wins", tone: "l4" },
+                { from: "r32", to: "eth", tone: "l4" },
+                { from: "r0", to: "eth", dashed: true, tone: "dim" },
+              ],
             },
           },
         ],

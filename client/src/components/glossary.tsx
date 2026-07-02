@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { md } from "../lib/render";
 import { GLOSSARY } from "../curriculum/glossary";
 import { ALL_MODULES } from "../curriculum/tracks";
-import type { Route } from "../App";
+import type { Route } from "../lib/nav";
 
 /* Glossary: every defined term in the course, filterable, each deep-linking
    to the module where it's taught. */

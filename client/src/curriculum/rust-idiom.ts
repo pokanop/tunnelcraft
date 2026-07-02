@@ -32,6 +32,23 @@ export const RUST_IDIOM: Module[] = [
           {
             p: "The **typestate** pattern encodes the state *in the type parameter*, so calling `send()` before `handshake()` isn't a bug you catch in review — it's code that doesn't compile. Use it where the state machine is small and the stakes are high (handshakes, raw-config → validated-config); use plain enums where states are many or dynamic. Both beat booleans, every time.",
           },
+          {
+            diagram: {
+              kind: "state",
+              title: "typestate: transitions are type conversions",
+              caption:
+                "handshake() consumes Tunnel<Disconnected>; send() only exists on Tunnel<Established> — the wrong order is a compile error, not a review comment.",
+              states: [
+                { id: "disc", label: "Tunnel<Disconnected>", x: 0, y: 0 },
+                { id: "est", label: "Tunnel<Established>", tone: "ok", x: 2, y: 0 },
+                { id: "err", label: "HandshakeError", tone: "bad", x: 1, y: 1 },
+              ],
+              edges: [
+                { from: "disc", to: "est", label: "handshake(cfg) → Ok", tone: "ok" },
+                { from: "disc", to: "err", label: "Err", tone: "bad", dashed: true },
+              ],
+            },
+          },
         ],
       },
       {
@@ -57,6 +74,21 @@ export const RUST_IDIOM: Module[] = [
         blocks: [
           {
             p: 'Rust makes errors values; craft is deciding *which* values. The working doctrine: **libraries expose structured enums, binaries flatten to reports**. Inside `tunnel-core`, an error is API — callers must be able to *match* on it (`EngineError::HandshakeTimeout` triggers failover; `EngineError::ConfigRejected` must not) — so you define enums with **thiserror**, which writes the `Display` and `From` boilerplate. At the binary edge (the daemon\'s main, a CLI), nobody matches anymore; **anyhow** gives you one flexible `anyhow::Error`, `?` everywhere, and `.context("loading peer config")` to build the human story.',
+          },
+          {
+            diagram: {
+              kind: "flow",
+              title: "one error's journey through ?",
+              caption:
+                "Libraries expose enums callers can match on; the binary edge flattens everything into one contextual report.",
+              nodes: [
+                { label: "io::Error", sub: "leaf cause", tone: "dim" },
+                { label: "EngineError", sub: "thiserror enum", tone: "acc" },
+                { label: "anyhow::Error", sub: "binary edge" },
+                { label: "report", sub: "human story", tone: "ok" },
+              ],
+              arrows: ["? + #[from]", "? + .context()", "main exits"],
+            },
           },
           {
             code: {

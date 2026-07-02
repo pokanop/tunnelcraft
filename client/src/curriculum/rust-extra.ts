@@ -65,6 +65,21 @@ export const RUST_EXTRA: Module[] = [
           {
             p: "A shippable pipeline in one breath: `fmt --check` → `clippy -D warnings` → `test --workspace` → `audit` / `deny` → build the release matrix (Linux/macOS/Windows targets — S01's platforms) → package. Every gate is one of this lesson's tools; every gate that's missing is a class of regression you've chosen to ship.",
           },
+          {
+            diagram: {
+              kind: "flow",
+              title: "the CI gauntlet",
+              caption:
+                "Each gate is one tool from this lesson; each missing gate is a class of regression you've chosen to ship.",
+              nodes: [
+                { label: "fmt --check", sub: "style", tone: "dim" },
+                { label: "clippy", sub: "-D warnings", tone: "acc" },
+                { label: "test", sub: "--workspace" },
+                { label: "audit + deny", sub: "supply chain" },
+                { label: "release build", sub: "3-OS matrix", tone: "ok" },
+              ],
+            },
+          },
         ],
       },
       {

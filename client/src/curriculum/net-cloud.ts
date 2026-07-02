@@ -27,10 +27,45 @@ export const NET_CLOUD: Module[] = [
             p: "Inside the VPC you cut **subnets** — in AWS each lives in one availability zone; GCP subnets span a region. What makes a subnet 'public' is nothing intrinsic: it's *its route table*. A subnet whose table has `0.0.0.0/0 → internet gateway` is public; one whose default route points at a **NAT gateway** is private — its instances can reach out (N11's SNAT, sold as a managed service, billed by the gigabyte), but nothing unsolicited can reach in. Every subnet also gets an implicit router: the VPC's own CIDR is always routable locally, no configuration needed.",
           },
           {
-            code: {
-              lang: "text",
+            diagram: {
+              kind: "topo",
               title: "one VPC, the classic two-tier layout",
-              body: "VPC 10.20.0.0/16\n├── 10.20.0.0/24   public-a    rt: 0.0.0.0/0 → igw        (load balancers, NAT gw)\n├── 10.20.1.0/24   public-b    rt: 0.0.0.0/0 → igw\n├── 10.20.10.0/24  private-a   rt: 0.0.0.0/0 → nat-gw      (app servers)\n├── 10.20.11.0/24  private-b   rt: 0.0.0.0/0 → nat-gw\n└── 10.20.20.0/24  data-a      rt: (no default route)      (databases: no internet, period)\n\nevery route table implicitly contains: 10.20.0.0/16 → local",
+              nodes: [
+                { id: "inet", label: "Internet", tone: "dim", x: 0, y: 0, shape: "cloud" },
+                { id: "igw", label: "IGW", tone: "l3", x: 1, y: 0 },
+                {
+                  id: "pub",
+                  label: "public a+b",
+                  sub: "10.20.0-1.0/24 · LB, NAT",
+                  tone: "ok",
+                  x: 2,
+                  y: 0,
+                },
+                {
+                  id: "priv",
+                  label: "private a+b",
+                  sub: "10.20.10-11.0/24 · apps",
+                  tone: "l7",
+                  x: 2,
+                  y: 1,
+                },
+                {
+                  id: "data",
+                  label: "data-a",
+                  sub: "10.20.20.0/24 · DBs",
+                  tone: "dim",
+                  x: 1,
+                  y: 1,
+                },
+              ],
+              links: [
+                { from: "pub", to: "igw", label: "0.0.0.0/0", tone: "ok" },
+                { from: "igw", to: "inet", tone: "dim" },
+                { from: "priv", to: "pub", label: "0.0.0.0/0 → NAT gw", tone: "acc" },
+                { from: "data", to: "priv", label: "local only", tone: "dim", dashed: true },
+              ],
+              caption:
+                "'Public' is a route-table property, not a label — and every table implicitly carries 10.20.0.0/16 → local. data-a has no default route at all: no internet, period.",
             },
           },
           {
@@ -111,6 +146,28 @@ export const NET_CLOUD: Module[] = [
           },
           {
             p: "**Policy-based vs route-based** is the design fork. Policy-based tunnels encrypt 'traffic matching this ACL' — brittle, and each new subnet pair means touching the ACL. **Route-based** tunnels present as a virtual interface (a VTI — conceptually a TUN device, T01) that you point *routes* at; what's encrypted is whatever routing sends into it. Route-based wins because it composes with everything routing can do — including running **BGP over the tunnel** (N10): your router and the cloud exchange prefixes dynamically, new subnets propagate without ticket-driven route edits, and when a tunnel dies BGP withdraws its routes and traffic shifts to the survivor. That's why cloud VPN endpoints come as *pairs*: two tunnels, two provider-side devices, BGP arbitrating — failover as a routing event (N10's lesson that resilience is a routing property), not an alert for a human.",
+          },
+          {
+            diagram: {
+              kind: "topo",
+              title: "site-to-site: two tunnels, BGP arbitrating",
+              nodes: [
+                { id: "hq", label: "HQ router", sub: "10.9.0.0/16", tone: "l3", x: 0, y: 1 },
+                { id: "inet", label: "Internet", tone: "dim", x: 1, y: 1, shape: "cloud" },
+                { id: "gwa", label: "VPN gw A", sub: "cloud endpoint", tone: "acc", x: 2, y: 0 },
+                { id: "gwb", label: "VPN gw B", sub: "cloud endpoint", tone: "acc", x: 2, y: 2 },
+                { id: "vpc", label: "VPC / TGW", sub: "10.20.0.0/16", tone: "ok", x: 3, y: 1 },
+              ],
+              links: [
+                { from: "hq", to: "inet", label: "ESP in UDP 4500", tone: "l4" },
+                { from: "inet", to: "gwa", label: "tunnel 1 · BGP", tone: "acc" },
+                { from: "inet", to: "gwb", label: "tunnel 2 · BGP", tone: "acc", dashed: true },
+                { from: "gwa", to: "vpc", tone: "ok" },
+                { from: "gwb", to: "vpc", tone: "ok" },
+              ],
+              caption:
+                "Route-based VTIs with BGP over both tunnels: when one dies, its routes are withdrawn and traffic shifts to the survivor — failover as a routing event.",
+            },
           },
           {
             code: {

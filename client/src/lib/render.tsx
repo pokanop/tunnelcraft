@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Block, CodeLang, LayerTag } from "../curriculum/types";
+import { DiagramView } from "./diagram";
 
 /* ---------- inline markdown (backticks + bold) ---------- */
 export function md(text: string): ReactNode[] {
@@ -123,6 +124,7 @@ export function Blocks({ blocks }: { blocks: Block[] }): ReactNode {
       );
     if ("code" in b)
       return <CodeBlock key={i} lang={b.code.lang} body={b.code.body} run={b.code.run} />;
+    if ("diagram" in b) return <DiagramView key={i} d={b.diagram} />;
     if ("note" in b)
       return (
         <div key={i} className="callout">

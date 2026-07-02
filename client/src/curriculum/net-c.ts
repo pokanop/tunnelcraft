@@ -36,6 +36,49 @@ export const NET_C: Module[] = [
             p: "Two roles, endlessly conflated. Your **stub resolver** (in the OS) asks one configured **recursive resolver** (your router, ISP, 1.1.1.1, or your VPN's — N11) a single question and expects a final answer. The *recursive* resolver does the real work **iteratively**: ask root → referral to .com → ask .com → referral to example.com's nameservers → ask those → answer. Then it hands the finished result back to you.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "One question, one walk",
+              caption:
+                "Recursive for the stub, iterative for itself: every upstream reply is a better referral until the authoritative server finally speaks. The TTL then makes repeats free.",
+              actors: [
+                { id: "stub", label: "Stub", sub: "your OS", tone: "l7" },
+                { id: "rec", label: "Recursive", sub: "e.g. 1.1.1.1", tone: "acc" },
+                { id: "tree", label: "Hierarchy", sub: "root → .com → auth" },
+              ],
+              steps: [
+                { from: "stub", to: "rec", label: "A example.com?", sub: "wants a final answer" },
+                { note: "the recursive iterates down the tree" },
+                { from: "rec", to: "tree", label: "ask root" },
+                {
+                  from: "tree",
+                  to: "rec",
+                  label: "referral",
+                  sub: "→ the .com servers",
+                  tone: "dim",
+                },
+                { from: "rec", to: "tree", label: "ask .com" },
+                {
+                  from: "tree",
+                  to: "rec",
+                  label: "referral",
+                  sub: "→ example.com's NS",
+                  tone: "dim",
+                },
+                { from: "rec", to: "tree", label: "ask authoritative" },
+                { from: "tree", to: "rec", label: "A 93.184.216.34", sub: "TTL 3600", tone: "ok" },
+                {
+                  from: "rec",
+                  to: "stub",
+                  label: "final answer",
+                  sub: "cached for 3600 s",
+                  tone: "ok",
+                },
+                { note: "next asker: cache hit, zero upstream packets", tone: "ok" },
+              ],
+            },
+          },
+          {
             p: "The system survives its own popularity through **caching**: every record carries a **TTL** (seconds it may be reused). The recursive caches answers *and* referrals — after resolving one .com name it never bothers root for another .com for days. Negative results are cached too (**negative caching**, governed by the SOA record), which is why a typo'd name stays 'nonexistent' for a while even after you create it. Practical TTL craft: drop to 300 before a planned migration, raise back after — and remember caches around the world only expire on *their* schedule, hence 'DNS propagation' folklore.",
           },
           {
@@ -67,6 +110,33 @@ export const NET_C: Module[] = [
         blocks: [
           {
             p: "Classic DNS is plaintext UDP with a 16-bit transaction ID — historically vulnerable to **cache poisoning**: race a fake answer to a resolver and every downstream user inherits the lie (Kaminsky's 2008 attack industrialized this). Mitigations hardened the race (source-port randomization, 0x20 case games), but the honest fix splits into two *different* guarantees, and knowing which is which is the professional skill.",
+          },
+          {
+            diagram: {
+              kind: "stack",
+              title: "Two fixes, two threats",
+              gapLabel: "complementary",
+              caption:
+                "DNSSEC authenticates answers but hides nothing; DoH/DoT hide the question in transit but authenticate nothing. A poisoned answer over encrypted transport is still poison.",
+              cols: [
+                {
+                  title: "DNSSEC — authenticity",
+                  cells: [
+                    { label: "Signed records", tone: "ok" },
+                    { label: "Chain of trust", sub: "root → TLD → zone", tone: "acc" },
+                    { label: "Plaintext queries", sub: "anyone can read", tone: "bad" },
+                  ],
+                },
+                {
+                  title: "DoT / DoH — privacy",
+                  cells: [
+                    { label: "Encrypted transport", tone: "ok" },
+                    { label: "On-path eyes blinded", sub: "café attacker sees TLS", tone: "acc" },
+                    { label: "Unsigned answers", sub: "resolver still sees all", tone: "bad" },
+                  ],
+                },
+              ],
+            },
           },
           {
             p: "**DNSSEC** = *authenticity*. Zones sign their records; a chain of trust runs root → TLD → zone via DS/DNSKEY records; validating resolvers reject forged answers. It does **not** encrypt anything — the whole world can still read your queries — and its failure mode is availability (bad signatures = domain vanishes), which is why adoption is respected-but-partial.",
@@ -335,6 +405,50 @@ export const NET_C: Module[] = [
             p: "TLS is the other great handshake in your life, and 1.3 made it rhyme with what you know from T02. ClientHello carries the client's supported suites *and* an ephemeral key share (optimistically guessing the group); ServerHello answers with its own share and — already encrypted from this point — the certificate and a signed proof of holding its private key. One round trip to application data, ephemeral (EC)DHE always, so **forward secrecy is mandatory**: yesterday's captures stay dark even if the server key leaks tomorrow. 1.3 also amputated the legacy cipher zoo down to a handful of AEADs (your T02 vocabulary applies verbatim).",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "TLS 1.3 handshake",
+              caption:
+                "Key agreement first, identity second, one round trip to data — and the ephemeral shares mean forward secrecy is mandatory. WireGuard skips the certificate leg entirely: config pre-answered the identity question.",
+              actors: [
+                { id: "c", label: "Client", sub: "knows nobody", tone: "acc" },
+                { id: "s", label: "Server", sub: "must prove itself", tone: "l6" },
+              ],
+              steps: [
+                {
+                  from: "c",
+                  to: "s",
+                  label: "ClientHello",
+                  sub: "suites + ephemeral key share",
+                  tone: "l6",
+                },
+                { from: "s", to: "c", label: "ServerHello", sub: "server's key share", tone: "l6" },
+                { note: "both compute secrets — encrypted from here", tone: "ok" },
+                {
+                  from: "s",
+                  to: "c",
+                  label: "Certificate + proof",
+                  sub: "CA-vouched identity",
+                  tone: "acc2",
+                },
+                {
+                  from: "c",
+                  to: "s",
+                  label: "Finished",
+                  sub: "chain valid, name matches",
+                  tone: "ok",
+                },
+                {
+                  from: "c",
+                  to: "s",
+                  label: "HTTP request",
+                  sub: "same flight — 1 RTT total",
+                  tone: "l7",
+                },
+              ],
+            },
+          },
+          {
             p: "The contrast with Noise_IK is the instructive part: WireGuard *pre-knows* the peer's key (config is the PKI), so it authenticates in message one and hides in silence. TLS must talk to **strangers** — you've never met this server — so identity arrives *during* the handshake as a certificate, vouched for by a third party. Same primitives, opposite trust bootstrap. That single difference explains most of both designs.",
           },
           {
@@ -371,6 +485,40 @@ export const NET_C: Module[] = [
           },
           {
             p: "**Act III — HTTP/3**: keep the streams idea, replace the transport. QUIC gives each stream **independent delivery**, so one lost packet stalls only its own stream. The endgame of a pattern you now own: reliability guarantees belong at the layer that wants them, not below it (N08's UDP choice, N09's meltdown, S02's MASQUE datagrams — same law, four sightings).",
+          },
+          {
+            diagram: {
+              kind: "stack",
+              title: "Where head-of-line blocking lives",
+              caption:
+                "Each act relocates the blocking one layer down. QUIC finally gives every stream independent delivery, so a lost packet stalls only its own stream — the guarantee moved to the layer that wanted it.",
+              cols: [
+                {
+                  title: "HTTP/1.1",
+                  cells: [
+                    { label: "One request at a time", tone: "bad" },
+                    { label: "HoL at the app", sub: "slow reply blocks queue", tone: "bad" },
+                    { label: "TCP", tone: "l4" },
+                  ],
+                },
+                {
+                  title: "HTTP/2",
+                  cells: [
+                    { label: "Multiplexed streams", tone: "ok" },
+                    { label: "HoL at the transport", sub: "one loss stalls all", tone: "bad" },
+                    { label: "TCP", tone: "l4" },
+                  ],
+                },
+                {
+                  title: "HTTP/3",
+                  cells: [
+                    { label: "Multiplexed streams", tone: "ok" },
+                    { label: "Independent recovery", sub: "loss stalls one stream", tone: "ok" },
+                    { label: "QUIC on UDP", tone: "acc" },
+                  ],
+                },
+              ],
+            },
           },
         ],
       },

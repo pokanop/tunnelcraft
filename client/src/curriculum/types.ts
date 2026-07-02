@@ -1,6 +1,7 @@
 /* Shared shapes for the entire curriculum. Every module data file declares
    `satisfies readonly Module[]`, so a typo in a lesson block or a quiz answer
    index is a compile error, not a runtime surprise. */
+import type { Diagram } from "../lib/diagram";
 
 /** OSI layer tags plus the two non-layer tracks (Rust, cross-platform). */
 export type LayerTag = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7" | "RS" | "XP";
@@ -21,6 +22,7 @@ export type Block =
   | { h: string }
   | { ul: string[] }
   | { code: CodeSpec }
+  | { diagram: Diagram }
   | { note: string; label?: string }
   | { tbl: { head: string[]; rows: string[][] } };
 

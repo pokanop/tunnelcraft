@@ -4,7 +4,7 @@ import { shuffle } from "./exercises";
 import { dueCards, deckStats, resolveCard, BOX_INTERVALS_DAYS } from "../lib/review";
 import type { Module } from "../curriculum/types";
 import type { Progress } from "../lib/progress";
-import type { Route } from "../App";
+import type { Route } from "../lib/nav";
 
 /* Review mode: drills every due card (missed quiz questions) with
    Leitner scheduling. Right → promotes toward graduation; wrong → box 0. */

@@ -104,6 +104,50 @@ export const NET_WIFI: Module[] = [
             p: "The **4-way handshake** is how WPA2/WPA3 turn a credential into fresh per-session encryption keys, *after* association. Both sides already share a master key (the PMK — derived from the passphrase in Personal, or from the 802.1X exchange in Enterprise). The four messages exchange random nonces so both derive the same **PTK** (Pairwise Transient Key) without ever sending it, prove liveness to each other, and install the keys. Only when it completes does encrypted data flow. If you've watched a capture, this is the `EAPOL` message 1/2/3/4 sequence.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "The WPA2/WPA3 4-way handshake",
+              actors: [
+                { id: "sta", label: "Station", sub: "holds PMK", tone: "l2" },
+                { id: "ap", label: "AP", sub: "holds PMK", tone: "l2" },
+              ],
+              steps: [
+                { note: "associated — no data may flow yet" },
+                {
+                  from: "ap",
+                  to: "sta",
+                  label: "Msg 1: ANonce",
+                  sub: "AP's random nonce",
+                  tone: "l2",
+                },
+                {
+                  from: "sta",
+                  to: "ap",
+                  label: "Msg 2: SNonce + MIC",
+                  sub: "station derives PTK, proves it",
+                  tone: "l2",
+                },
+                {
+                  from: "ap",
+                  to: "sta",
+                  label: "Msg 3: install + MIC",
+                  sub: "AP derives PTK, delivers group key",
+                  tone: "l2",
+                },
+                {
+                  from: "sta",
+                  to: "ap",
+                  label: "Msg 4: confirm",
+                  sub: "keys installed on both sides",
+                  tone: "ok",
+                },
+                { note: "encrypted data flows", tone: "ok" },
+              ],
+              caption:
+                "Both sides mix the shared PMK with fresh nonces to derive the same PTK independently — the session key itself never crosses the air.",
+            },
+          },
+          {
             p: "**WPA2's structural weakness** is twofold: an eavesdropper who captures the 4-way handshake can brute-force a weak passphrase offline (the handshake is enough — they never need to touch the network again), and WPA2-Personal has no forward secrecy, so a passphrase learned later decrypts past captured traffic. **WPA3** fixes both with **SAE** (Simultaneous Authentication of Equals, a.k.a. Dragonfly): a password-authenticated key exchange where a captured handshake reveals *nothing* offline — each guess requires a fresh live interaction with the AP — and each session gets forward secrecy. WPA3 also mandates **PMF** (Protected Management Frames, 802.11w), which authenticates management frames and kills the deauth attack from the next lesson.",
           },
           {
@@ -132,6 +176,40 @@ export const NET_WIFI: Module[] = [
               "**Deauthentication attack** — because classic management frames are unauthenticated, an attacker spoofs a **deauth** frame 'from' the AP, kicking a victim off. Repeat it to deny service, or to force the victim to reconnect — often onto the evil twin, or to re-capture the 4-way handshake for offline cracking. **PMF (WPA3) closes this** by authenticating management frames.",
               "**Captive portal** — the coffee-shop 'agree and connect' page. Benign in intent, but it's a deliberate MITM: the network hijacks your first HTTP request and forges DNS to redirect you. Its mechanics (forged DNS, HTTP interception) are indistinguishable from an attack, which is why they interact badly with VPNs and DNS security (P04): the tunnel must stay down until the portal is satisfied, then come up — the captive-portal detection and ordering problem you handle at the platform layer.",
             ],
+          },
+          {
+            diagram: {
+              kind: "topo",
+              title: "The evil twin",
+              nodes: [
+                { id: "sta", label: "Victim", sub: "trusts SSIDs by name", tone: "l2", x: 0, y: 1 },
+                {
+                  id: "real",
+                  label: "CoffeeShop",
+                  sub: "real AP · weaker signal",
+                  tone: "ok",
+                  x: 1,
+                  y: 0,
+                },
+                {
+                  id: "evil",
+                  label: "CoffeeShop",
+                  sub: "rogue AP · stronger signal",
+                  tone: "bad",
+                  x: 1,
+                  y: 2,
+                },
+                { id: "net", label: "Internet", tone: "dim", x: 2, y: 1, shape: "cloud" },
+              ],
+              links: [
+                { from: "sta", to: "real", label: "expected", tone: "dim", dashed: true },
+                { from: "sta", to: "evil", label: "associates", tone: "bad" },
+                { from: "evil", to: "net", label: "MITM gateway", tone: "bad" },
+                { from: "real", to: "net", tone: "dim", dashed: true },
+              ],
+              caption:
+                "Same SSID, stronger beacon — the attacker becomes your L2 and your gateway. Only an end-to-end tunnel survives a link like this.",
+            },
           },
           {
             note: "The through-line of this whole module: Wi-Fi security protects the *link*, and on any network you don't control you should assume the link is hostile — evil twin, portal, or just a nosy AP operator. That assumption is the entire justification for an always-on, end-to-end tunnel with authenticated peers and its own DNS. WPA3 is a good floor; it is not the ceiling, and it is not present on the open hotspot you're actually worried about.",
@@ -304,6 +382,25 @@ export const NET_WIFI: Module[] = [
           },
           {
             p: "**Rate adaptation** is the control loop that walks this ladder live: transmit, and if ACKs go missing (N03 — the only failure signal a radio gets), step down to a hardier MCS; after a run of clean frames, probe upward again. It never sits still, which is why wireless throughput graphs breathe. And connect this to N03's airtime economics: a client that drops from MCS 9 to MCS 2 doesn't just get slower *itself* — each of its frames now occupies the shared channel several times longer, taxing every station in the cell.",
+          },
+          {
+            diagram: {
+              kind: "state",
+              title: "Rate adaptation walks the MCS ladder",
+              states: [
+                { id: "lo", label: "Low MCS", tone: "ok", x: 0, y: 0 },
+                { id: "mid", label: "Mid MCS", tone: "l1", x: 1, y: 0 },
+                { id: "hi", label: "High MCS", tone: "acc", x: 2, y: 0 },
+              ],
+              edges: [
+                { from: "lo", to: "mid", label: "clean run", tone: "ok", bend: 22 },
+                { from: "mid", to: "hi", label: "clean run", tone: "ok", bend: 22 },
+                { from: "hi", to: "mid", label: "missed ACKs", tone: "bad", bend: 22 },
+                { from: "mid", to: "lo", label: "missed ACKs", tone: "bad", bend: 22 },
+              ],
+              caption:
+                "Missing ACKs are the radio's only failure signal: step down to a hardier rate, probe back up after clean frames. The loop never sits still.",
+            },
           },
           {
             note: "Retry rate is the most underrated wireless health metric. A link retrying 30% of its frames still 'works' — TCP hides the losses — but latency and jitter go feral, which is exactly what a tunnel carrying interactive traffic can't absorb. When diagnosing, look at retries and the negotiated rate before anything else; lesson 5 shows you where.",
@@ -566,6 +663,46 @@ export const NET_WIFI: Module[] = [
             p: "**802.1X** is port-based network access control, and it predates Wi-Fi — it was built for Ethernet switch ports. The model has three roles: the **supplicant** (the client's auth software), the **authenticator** (the switch port or AP), and the **authentication server** (almost always **RADIUS**). The authenticator's port starts in a blocked state where exactly one traffic type may pass: **EAPOL** (EAP over LAN), the authentication conversation itself. No DHCP, no ARP, nothing — until the server says yes.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "802.1X: three parties, one blocked port",
+              actors: [
+                { id: "sup", label: "Supplicant", sub: "the client", tone: "l2" },
+                { id: "ap", label: "Authenticator", sub: "AP · port blocked", tone: "l2" },
+                { id: "rad", label: "RADIUS", sub: "auth server", tone: "l3" },
+              ],
+              steps: [
+                { note: "only EAPOL passes the blocked port" },
+                { from: "sup", to: "ap", label: "EAPOL-Start", tone: "l2" },
+                {
+                  from: "ap",
+                  to: "rad",
+                  label: "Access-Request",
+                  sub: "EAP repackaged into RADIUS",
+                  tone: "l3",
+                },
+                {
+                  from: "rad",
+                  to: "sup",
+                  label: "EAP method",
+                  sub: "TLS / credential rounds, relayed by AP",
+                  tone: "acc",
+                  dashed: true,
+                },
+                {
+                  from: "rad",
+                  to: "ap",
+                  label: "Access-Accept + PMK",
+                  sub: "may carry a VLAN attribute",
+                  tone: "ok",
+                },
+                { note: "port opens — 4-way handshake runs on the per-user PMK", tone: "ok" },
+              ],
+              caption:
+                "The AP is a relay: it never sees credentials, only enforces the verdict — and receives the PMK that feeds the same handshake as N03.",
+            },
+          },
+          {
             ul: [
               "**Supplicant** — initiates with EAPOL-Start, proves identity via some EAP method (next lesson).",
               "**Authenticator** — the AP. Crucially, it is a *relay*: it repackages EAP frames from the air into RADIUS packets toward the server and back. It never sees credentials and can't evaluate them; it just enforces the verdict.",
@@ -804,6 +941,21 @@ export const NET_WIFI: Module[] = [
             p: "Here is the fact that reframes everything: on cellular, your packets are tunneled *before your VPN does anything*. The radio network (**RAN** — the towers) and the **core** (the operator's brain: authentication via your SIM, billing, policy) are connected by **GTP** (GPRS Tunneling Protocol). Every IP packet your phone sends is encapsulated at the base station and carried through a GTP tunnel to a **packet gateway** deep in the operator's core — and *that* is where your IP address actually lives. Not at the tower. Your phone is, topologically, a device dangling at the end of a very long virtual wire.",
           },
           {
+            diagram: {
+              kind: "flow",
+              title: "Where your IP address actually lives",
+              nodes: [
+                { label: "UE", sub: "your phone", tone: "l1" },
+                { label: "eNodeB / gNB", sub: "the tower", tone: "l2" },
+                { label: "Packet gateway", sub: "your IP anchors here", tone: "l3" },
+                { label: "Internet", tone: "dim" },
+              ],
+              arrows: ["scheduled grant", "GTP tunnel", "CGNAT"],
+              caption:
+                "Every packet is tunneled before your VPN does anything: handoffs repoint the GTP tunnel tower-to-tower while the gateway anchor — and your address — hold still.",
+            },
+          },
+          {
             p: "This architecture is *why* cellular mobility works the way it does. Drive across town through ten tower handoffs and your IP never changes — the mobility is handled *under* IP, by repointing GTP tunnels from tower to tower while the packet gateway anchor stays put. Compare N03: Wi-Fi roaming is client-driven, visible, and can change your subnet; cellular handoff is network-driven and invisible at L3. The complexity didn't disappear — it moved into the operator's infrastructure.",
           },
           {
@@ -877,6 +1029,31 @@ export const NET_WIFI: Module[] = [
           },
           {
             p: "Finally, the invoice: **RRC** (Radio Resource Control), the radio's state machine. Idle is cheap; Connected burns real power; and *every transition costs* — a single packet sent from idle drags the radio up through a signaling exchange and holds it in the high-power state for a tail of several seconds. Now recall the CGNAT lesson: keepalives must be frequent enough to hold NAT bindings. Each one wakes the radio. A 25-second keepalive can, alone, prevent the radio from ever resting — the tension between 'tunnel stays reachable' and 'phone lasts the day' is a genuine two-sided trade with no free answer.",
+          },
+          {
+            diagram: {
+              kind: "state",
+              title: "RRC: the radio's power ladder",
+              states: [
+                { id: "idle", label: "Idle", tone: "ok", x: 0, y: 0 },
+                { id: "conn", label: "Connected", tone: "acc", x: 2, y: 0 },
+                { id: "tail", label: "Tail", tone: "l1", x: 1, y: 1 },
+              ],
+              edges: [
+                {
+                  from: "idle",
+                  to: "conn",
+                  label: "any packet · signaling",
+                  tone: "acc",
+                  bend: 20,
+                },
+                { from: "conn", to: "tail", label: "traffic stops" },
+                { from: "tail", to: "idle", label: "tail timer expires", tone: "ok" },
+                { from: "tail", to: "conn", label: "keepalive", tone: "bad", dashed: true },
+              ],
+              caption:
+                "Idle is cheap; Connected burns real power; every wake-up pays a signaling toll plus a multi-second tail. A 25 s keepalive can keep the radio from ever resting.",
+            },
           },
           {
             note: "This is where network engineering becomes product engineering (S02): adaptive keepalives (aggressive when active, relaxed when idle), letting the platform's push mechanisms wake the app instead of polling, batching background traffic to share radio wake-ups. On mobile, every packet has a price in joules — the best mobile tunnel clients are the ones that learned to be quiet.",

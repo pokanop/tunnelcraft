@@ -46,6 +46,32 @@ export const PLATFORM_B: Module[] = [
             p: "Read the loop-prevention trick in rule 3: the encrypted outer packets carry the fwmark, so they *skip* the tunnel table and exit via main/eth0 — the /32 endpoint pin from N01/P02, achieved with a mark instead of a route. And rule 4's `suppress_prefixlength 0` is the elegant part: consult main first, accept any match more specific than /0 (your LAN, your printer), suppress only its default — so 'LAN stays local, world goes tunneled' emerges from rule composition, not enumeration. This is the pattern to steal for your own client's Linux engine; nftables marks per-cgroup extend it to **per-app** routing (the Android trick, native edition).",
           },
           {
+            diagram: {
+              kind: "topo",
+              title: "fwmark: the loop, prevented",
+              caption:
+                "Unmarked traffic falls through to the tunnel table; wg0's encrypted output carries the mark and exits via main/eth0 — N01's /32 pin, done with a mark — while suppress_prefixlength 0 lets main's LAN routes keep winning.",
+              nodes: [
+                { id: "app", label: "app packet", tone: "l7", x: 0, y: 0 },
+                { id: "outer", label: "outer UDP", sub: "fwmark 51820", tone: "l4", x: 0, y: 2 },
+                { id: "rule", label: "ip rule", shape: "round", x: 1, y: 1 },
+                { id: "t", label: "table 51820", sub: "default dev wg0", tone: "acc", x: 2, y: 0 },
+                { id: "main", label: "table main", sub: "LAN + default", tone: "l3", x: 2, y: 2 },
+                { id: "wg", label: "wg0", sub: "encrypt + mark", tone: "acc", x: 3, y: 0 },
+                { id: "eth", label: "eth0", sub: "physical", tone: "l3", x: 3, y: 2 },
+              ],
+              links: [
+                { from: "app", to: "rule" },
+                { from: "outer", to: "rule", tone: "l4" },
+                { from: "rule", to: "t", label: "no mark", tone: "acc" },
+                { from: "rule", to: "main", label: "marked", tone: "l4" },
+                { from: "t", to: "wg", tone: "acc" },
+                { from: "main", to: "eth", tone: "l4" },
+                { from: "wg", to: "outer", label: "loops back", tone: "l4", dashed: true },
+              ],
+            },
+          },
+          {
             p: "Round out the Linux picture: `rp_filter` (reverse-path filtering) will silently drop asymmetric tunnel traffic — set loose mode on the tunnel interface; kill switch is an nftables policy-drop chain with exceptions for wg0 + marked packets (persistent via netfilter, S01's fail-closed); and split DNS is `resolvectl domain wg0 ~corp.example` with systemd-resolved routing queries per-domain per-link — the third platform, the third completely different split-DNS mechanism.",
           },
         ],
@@ -60,6 +86,55 @@ export const PLATFORM_B: Module[] = [
           },
           {
             p: "The loop-prevention move is unique here: your process can't add an endpoint route, so **VpnService.protect(socket)** marks your outer UDP socket to bypass the VPN — forget it and you build the self-swallowing tunnel from N01 on day one. Lifecycle is the hard part: **always-on VPN + lockdown** (user-togglable in settings) is the system-enforced kill switch — traffic blocked whenever your VPN isn't up, no nftables required; Doze and background-execution limits mean your service must run as a foreground service with a notification; and network switches arrive via ConnectivityManager callbacks — rebind the outer socket, keep the tunnel fd, and WireGuard's identity-not-address roaming (T03) makes the handover seamless.",
+          },
+          {
+            diagram: {
+              kind: "seq",
+              title: "VpnService: consent to packet loop",
+              caption:
+                "establish() returns a real tun fd you hand straight to Rust; protect() is the loop-prevention move — forget it and the tunnel swallows its own ciphertext.",
+              actors: [
+                { id: "app", label: "Your app", sub: "Kotlin", tone: "l7" },
+                { id: "sys", label: "Android", sub: "VpnService" },
+                { id: "core", label: "Rust core", tone: "acc" },
+              ],
+              steps: [
+                { note: "one-time consent" },
+                { from: "app", to: "sys", label: "prepare()", sub: "system dialog" },
+                { from: "sys", to: "app", label: "granted" },
+                { note: "bring-up" },
+                {
+                  from: "app",
+                  to: "sys",
+                  label: "Builder.establish()",
+                  sub: "routes · DNS · per-app · MTU",
+                },
+                {
+                  from: "sys",
+                  to: "app",
+                  label: "tun fd",
+                  sub: "ParcelFileDescriptor",
+                  tone: "acc",
+                },
+                {
+                  from: "app",
+                  to: "sys",
+                  label: "protect(udp)",
+                  sub: "outer socket bypasses VPN",
+                  tone: "ok",
+                },
+                { note: "hot path" },
+                { from: "app", to: "core", label: "fd across JNI", tone: "acc" },
+                {
+                  from: "core",
+                  to: "sys",
+                  label: "read / write fd",
+                  sub: "same loop as Linux",
+                  tone: "acc",
+                  dashed: true,
+                },
+              ],
+            },
           },
           {
             p: "Two closing realities: apps can *detect* VPN presence (NetworkCapabilities) and some (banking, streaming) change behavior — a support-ticket genre of its own; and Android 10+ offers **seamless handover**: establish a *second* tunnel fd, migrate, then close the old one — zero-packet-drop reconfiguration, which is precisely the double-buffered config-swap pattern your S02 config broker wants everywhere.",
@@ -194,6 +269,22 @@ export const PLATFORM_B: Module[] = [
             p: 'Enterprises rarely hardcode one proxy; they ship a **PAC file** — JavaScript defining `FindProxyForURL(url, host)` that returns a routing decision string: `"PROXY px1.corp:8080; SOCKS5 fallback:1080; DIRECT"` (a failover *list*, tried in order). The helper predicates are a fixed little standard library: `dnsDomainIs(host, ".corp.example")`, `isInNet(host, "10.0.0.0", "255.0.0.0")`, `shExpMatch`, `isPlainHostName`, `myIpAddress()` — pattern-matching hosts to egress paths. PAC is, notice, *split tunneling at L7, in JavaScript, from 1996* — the strategy matrix in the next lesson has deep roots.',
           },
           {
+            diagram: {
+              kind: "flow",
+              title: "a PAC verdict is a failover list",
+              caption:
+                "FindProxyForURL returns candidates tried in order — honor the ; DIRECT tail or your client hard-fails where a browser would soldier on.",
+              nodes: [
+                { label: "url, host", tone: "l7" },
+                { label: "FindProxyForURL", sub: "JS · per network", tone: "acc2" },
+                { label: "PROXY px1:8080", tone: "l4" },
+                { label: "PROXY px2:8080", tone: "l4" },
+                { label: "DIRECT", sub: "no proxy", tone: "ok" },
+              ],
+              arrows: ["evaluate", "try #1", "fail", "fail"],
+            },
+          },
+          {
             code: {
               lang: "javascript",
               title: "a real-world-shaped PAC file",
@@ -218,6 +309,51 @@ export const PLATFORM_B: Module[] = [
           },
           {
             p: "**By domain** — the modern enterprise favorite: matchDomains split DNS (P01), NRPT (P02), resolvectl domains (P03), or the DNS-synthesis trick where the tunnel's resolver answers corporate names with addresses from a captured CIDR so domain policy *becomes* route policy. Its Achilles heel you already know from N12: a browser doing its own DoH silently bypasses the whole scheme — production clients detect and handle it. **By policy/flow** — the endgame: per-flow decisions weighing app, destination, user, and device posture, i.e. S02's Flow dispatch and zero trust's per-request authorization (N17). The four strategies compose; real deployments layer them.",
+          },
+          {
+            diagram: {
+              kind: "stack",
+              title: "four ways to split a tunnel",
+              caption:
+                "Same jobs, per-platform primitives: CIDRs for networks, apps for intent, domains for services, policy for zero trust — and real deployments layer the columns.",
+              cols: [
+                {
+                  title: "by route",
+                  cells: [
+                    { label: "AllowedIPs", sub: "WireGuard", tone: "l3" },
+                    { label: "includedRoutes", sub: "Apple", tone: "l3" },
+                    { label: "/1 trick", sub: "Windows", tone: "l3" },
+                    { label: "policy tables", sub: "Linux", tone: "l3" },
+                  ],
+                },
+                {
+                  title: "by app",
+                  cells: [
+                    { label: "NEAppRule", sub: "Apple · MDM", tone: "l7" },
+                    { label: "ALE app path", sub: "Windows WFP", tone: "l7" },
+                    { label: "cgroup marks", sub: "Linux", tone: "l7" },
+                    { label: "Builder lists", sub: "Android", tone: "l7" },
+                  ],
+                },
+                {
+                  title: "by domain",
+                  cells: [
+                    { label: "matchDomains", sub: "Apple", tone: "acc2" },
+                    { label: "NRPT", sub: "Windows", tone: "acc2" },
+                    { label: "resolvectl", sub: "Linux", tone: "acc2" },
+                    { label: "DNS synthesis", sub: "any", tone: "acc2" },
+                  ],
+                },
+                {
+                  title: "by policy",
+                  cells: [
+                    { label: "per-flow rules", sub: "app+dst+posture", tone: "acc" },
+                    { label: "zero trust", sub: "per-request authz", tone: "acc" },
+                    { label: "S02 dispatch", sub: "your core", tone: "acc" },
+                  ],
+                },
+              ],
+            },
           },
           {
             p: "Whatever the strategy, run the same **leak review**: What happens to IPv6 (is ::/0 handled, or does every AAAA walk around the split — N05)? Who resolves names, and does the *resolution path* match the *traffic path* (the isInNet and DoH traps)? What do LAN exclusions admit on a hostile network (excludeLocalNetworks + a café using 192.168.0.0/16 — N07's ranges as threat model)? And does the inverse hold under failure — when the tunnel dies, does 'split' decay to 'open' (kill-switch interaction, S01)? A split-tunnel design isn't done when it routes correctly; it's done when each of those four questions has a written answer.",

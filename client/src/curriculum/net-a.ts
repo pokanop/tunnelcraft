@@ -45,6 +45,21 @@ export const NET_A: Module[] = [
             p: "Ethernet is the L2 contract for nearly every wired network and, with cosmetic changes, Wi-Fi too. A frame wraps your IP packet with addressing for the *local segment only*: a 6-byte **destination MAC**, 6-byte **source MAC**, a 2-byte **EtherType** saying what's inside (0x0800 IPv4, 0x86DD IPv6, 0x0806 ARP), the payload, and a trailing **FCS** checksum. Corrupted frames are silently dropped — recovery is someone else's job (hello, TCP).",
           },
           {
+            diagram: {
+              kind: "packet",
+              title: "Ethernet II frame",
+              caption:
+                "The L2 envelope spans one segment only — every router hop strips it and writes a fresh one around the same IP packet.",
+              segs: [
+                { label: "Dst MAC", sub: "6 B — read first", tone: "l2" },
+                { label: "Src MAC", sub: "6 B — learned", tone: "l2" },
+                { label: "EtherType", sub: "0x0800 = IPv4", tone: "acc" },
+                { label: "Payload", sub: "IP packet · ≤1500 B (MTU)", tone: "l3" },
+                { label: "FCS", sub: "checksum", tone: "dim" },
+              ],
+            },
+          },
+          {
             p: "MAC addresses are flat, burned-in-ish identifiers (first three bytes = vendor). They are **not routable** — they never leave the local segment. Every router hop *rewrites* the frame: new source MAC (the router's), new destination MAC (the next hop), same inner IP packet. L2 addressing is per-hop; L3 addressing is end-to-end. Internalize that split and traceroute, ARP, and 'why does my sniffer show the gateway's MAC?' all make sense.",
           },
           {
@@ -91,6 +106,29 @@ export const NET_A: Module[] = [
             p: "Between switches, a **trunk** port carries multiple VLANs at once by inserting an **802.1Q tag** — 4 extra bytes in the Ethernet header holding the VLAN ID (1–4094). Access ports (to laptops, printers) are untagged; the switch assigns their VLAN and strips tags. The tag exists only switch-to-switch.",
           },
           {
+            diagram: {
+              kind: "topo",
+              title: "two VLANs, two switches, one router",
+              caption:
+                "Same hardware, two isolated broadcast domains: the tagged trunk keeps VLANs separate between switches, and only the router carries traffic across.",
+              nodes: [
+                { id: "e1", label: "Eng PC", sub: "VLAN 10", tone: "l2", x: 0, y: 0 },
+                { id: "g1", label: "Guest PC", sub: "VLAN 20", tone: "dim", x: 0, y: 2 },
+                { id: "swa", label: "Switch A", x: 1, y: 1 },
+                { id: "e2", label: "Eng PC", sub: "VLAN 10", tone: "l2", x: 2, y: 0 },
+                { id: "swb", label: "Switch B", x: 2, y: 1 },
+                { id: "rtr", label: "Router", sub: "inter-VLAN", tone: "l3", x: 3, y: 1 },
+              ],
+              links: [
+                { from: "e1", to: "swa", label: "access", tone: "l2" },
+                { from: "g1", to: "swa", label: "access", tone: "dim" },
+                { from: "swa", to: "swb", label: "trunk · 802.1Q", tone: "acc" },
+                { from: "e2", to: "swb", label: "access", tone: "l2" },
+                { from: "swb", to: "rtr", label: "routes 10 ↔ 20", tone: "l3" },
+              ],
+            },
+          },
+          {
             p: "Why you care as a tunnel engineer: VLANs are the classic **segmentation** tool — guest Wi-Fi that can't see the file server, IoT junk quarantined from workstations. Zero-trust posture logic (S02) is in many ways the modern, identity-based descendant of 'put it in a different VLAN'.",
           },
         ],
@@ -102,6 +140,36 @@ export const NET_A: Module[] = [
         blocks: [
           {
             p: "You know the destination *IP*; the frame needs a destination *MAC*. **ARP** answers the question. Host broadcasts: 'who has 192.168.1.7?' The owner replies unicast: '192.168.1.7 is at aa:bb:cc:dd:ee:ff.' The answer is cached (check yours: `ip neigh` / `arp -a`) for a few minutes.",
+          },
+          {
+            diagram: {
+              kind: "seq",
+              title: "ARP resolution",
+              caption:
+                "The question is broadcast so anyone can answer — and nothing verifies who does; that gap is ARP spoofing.",
+              actors: [
+                { id: "a", label: "Host .50", sub: "needs a MAC", tone: "acc" },
+                { id: "b", label: "Host .7", tone: "ok" },
+              ],
+              steps: [
+                { note: "cache miss for 192.168.1.7" },
+                {
+                  from: "a",
+                  to: "b",
+                  label: "who has 192.168.1.7?",
+                  sub: "broadcast — everyone hears",
+                  dashed: true,
+                },
+                {
+                  from: "b",
+                  to: "a",
+                  label: "is-at aa:bb:cc:dd:ee:ff",
+                  sub: "unicast reply",
+                  tone: "ok",
+                },
+                { note: "cached a few minutes — ip neigh / arp -a" },
+              ],
+            },
           },
           {
             p: "The subnet decision from N01 decides *what you ARP for*: destination in my subnet → ARP for the destination itself; destination elsewhere → ARP for the **default gateway** and send the frame to the router. This is the exact moment where 'is this address local?' becomes physical behavior.",
@@ -295,6 +363,25 @@ export const NET_A: Module[] = [
             p: "Then the fragmentation trio: **Identification**, **flags** (the one that matters: **DF**, Don't Fragment), **Fragment Offset**. A router facing a packet bigger than the next link's MTU may split it into fragments the destination reassembles — unless DF is set, in which case it drops the packet and sends back an ICMP 'Fragmentation Needed' message.",
           },
           {
+            diagram: {
+              kind: "packet",
+              title: "IPv4 header — 20 bytes",
+              caption:
+                "Five working fields plus the fragmentation trio; the dimmed ones you can mostly ignore forever.",
+              segs: [
+                { label: "Ver·IHL", sub: "0x45" },
+                { label: "TOS", tone: "dim" },
+                { label: "Length" },
+                { label: "ID·Flags·Off", sub: "DF bit", tone: "acc" },
+                { label: "TTL", sub: "dies at 0", tone: "acc" },
+                { label: "Proto", sub: "6·17·1", tone: "acc" },
+                { label: "Csum", tone: "dim" },
+                { label: "Src IP", sub: "claimed!", tone: "l3" },
+                { label: "Dst IP", tone: "l3" },
+              ],
+            },
+          },
+          {
             p: "Modern practice: **fragmentation is treated as pathological**. Fragments hurt performance, break stateful firewalls and NAT, and are a classic attack vector — lose one fragment and the whole packet is lost after a reassembly timeout. So everyone sets DF and instead performs **Path MTU Discovery**: send full-size packets with DF, listen for 'Fragmentation Needed' errors, shrink accordingly. Which works beautifully — until a firewall blocks the ICMP errors and creates a **PMTUD black hole**: small packets pass, big ones vanish. This is the mechanism behind the N01 tunnel-MTU advice: clamping to 1420 *avoids ever needing* the fragile discovery dance.",
           },
         ],
@@ -309,6 +396,47 @@ export const NET_A: Module[] = [
           },
           {
             p: "**Ping** is ICMP echo: measures reachability and round-trip time. **Traceroute** is the elegant hack: send probes with TTL=1, 2, 3, …; each router that kills a probe returns Time Exceeded *from its own address*, drawing the path hop by hop. Latency jumping at hop N tells you roughly where the slowness lives (with caveats you'll learn in N16: routers deprioritize generating ICMP, so a slow *hop* with fast *later hops* is noise, not signal).",
+          },
+          {
+            diagram: {
+              kind: "seq",
+              title: "traceroute, mechanically",
+              caption:
+                "Traceroute weaponizes loop prevention: every router that discards a probe reveals its address in the ICMP error.",
+              actors: [
+                { id: "h", label: "Host", tone: "acc" },
+                { id: "r1", label: "R1", tone: "l3" },
+                { id: "r2", label: "R2", tone: "l3" },
+                { id: "d", label: "Dest", tone: "ok" },
+              ],
+              steps: [
+                { from: "h", to: "r1", label: "probe TTL=1" },
+                {
+                  from: "r1",
+                  to: "h",
+                  label: "Time Exceeded",
+                  sub: "from R1 — hop 1",
+                  tone: "bad",
+                },
+                { from: "h", to: "r2", label: "probe TTL=2" },
+                {
+                  from: "r2",
+                  to: "h",
+                  label: "Time Exceeded",
+                  sub: "from R2 — hop 2",
+                  tone: "bad",
+                },
+                { note: "TTL=3, 4, … each probe dies one router deeper" },
+                { from: "h", to: "d", label: "probe TTL=3" },
+                {
+                  from: "d",
+                  to: "h",
+                  label: "reply",
+                  sub: "destination answers — path complete",
+                  tone: "ok",
+                },
+              ],
+            },
           },
           {
             p: "Security folklore says 'block all ICMP.' Reality: blocking Echo is a cosmetic choice; blocking **Fragmentation Needed** breaks PMTUD and creates mystery outages; blocking Time Exceeded blinds traceroute. The professional stance is *filter ICMP thoughtfully* — rate-limit, allow the error types the internet's plumbing depends on.",
@@ -522,10 +650,19 @@ export const NET_A: Module[] = [
             p: "Real networks don't use one subnet size. **Variable-Length Subnet Masking** means slicing your allocation into different-sized pieces per need: a /26 for the 50-person office, /29s for server pods, /30s (or /31s) for router-to-router links. The discipline: **allocate largest first**, keep each block aligned to its own size (a /26 must start on a multiple of 64), and leave growth headroom.",
           },
           {
-            code: {
-              lang: "text",
+            diagram: {
+              kind: "packet",
               title: "carving 10.50.0.0/24",
-              body: "need: 100 hosts, 50 hosts, 20 hosts, 2 point-to-point links\n\n10.50.0.0/25    → 126 usable   engineering   (.0–.127)\n10.50.0.128/26  →  62 usable   sales         (.128–.191)\n10.50.0.192/27  →  30 usable   servers       (.192–.223)\n10.50.0.224/30  →   2 usable   link A        (.224–.227)\n10.50.0.228/30  →   2 usable   link B        (.228–.231)\n10.50.0.232 – .255 free for growth",
+              caption:
+                "Needs of 100, 50, 20 hosts plus two links, allocated largest first — every block starts on a multiple of its own size, and the tail stays free for growth.",
+              segs: [
+                { label: "eng /25", sub: ".0–.127 · 126 hosts", tone: "l3" },
+                { label: "sales /26", sub: ".128–.191 · 62", tone: "l3" },
+                { label: "servers /27", sub: ".192–.223 · 30", tone: "l3" },
+                { label: "link A /30", sub: ".224–.227", tone: "acc" },
+                { label: "link B /30", sub: ".228–.231", tone: "acc" },
+                { label: "free", sub: ".232–.255", tone: "dim" },
+              ],
             },
           },
           {

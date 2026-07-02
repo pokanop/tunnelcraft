@@ -25,6 +25,45 @@ export const NET_DHCP: Module[] = [
             p: "The exchange is four messages — **DORA**: client broadcasts **DISCOVER** ('any DHCP servers out there?'); every server that hears it broadcasts back an **OFFER** (an address plus config); the client picks one and broadcasts **REQUEST** naming the chosen server and address; that server confirms with **ACK** — or refuses with **NAK**, sending the client back to square one.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "DORA with two servers",
+              caption:
+                "Four broadcasts bootstrap an address from nothing; the broadcast REQUEST doubles as the losing server's notice to reclaim its offer.",
+              actors: [
+                { id: "c", label: "Client", sub: "0.0.0.0 :68", tone: "acc" },
+                { id: "s1", label: "Server 1", sub: ":67", tone: "ok" },
+                { id: "s2", label: "Server 2", tone: "dim" },
+              ],
+              steps: [
+                {
+                  from: "c",
+                  to: "s2",
+                  label: "DISCOVER",
+                  sub: "broadcast — any servers?",
+                  dashed: true,
+                },
+                { from: "s1", to: "c", label: "OFFER .50", tone: "ok", dashed: true },
+                { from: "s2", to: "c", label: "OFFER .99", tone: "dim", dashed: true },
+                {
+                  from: "c",
+                  to: "s2",
+                  label: "REQUEST server 1",
+                  sub: "broadcast — loser reclaims .99",
+                  dashed: true,
+                },
+                {
+                  from: "s1",
+                  to: "c",
+                  label: "ACK",
+                  sub: "mask · gateway · DNS · lease",
+                  tone: "ok",
+                },
+                { note: "ARP-probe the address for duplicates, then use it" },
+              ],
+            },
+          },
+          {
             p: "Two details separate understanding from trivia. First: the REQUEST is *broadcast, not unicast* — deliberately, so every server that made an offer hears which one won and the losers reclaim their offered addresses. Second: the client matches replies to its own transaction via **xid** (a random transaction ID) and **chaddr** (its MAC — which is how DHCP *reservations* pin an address to a device, and why N06's MAC randomization breaks them).",
           },
           {
@@ -117,6 +156,32 @@ export const NET_DHCP: Module[] = [
             p: "The load-bearing field is **giaddr** (gateway address): the relay stamps the packet with the address of the interface the broadcast arrived on. That single field does two jobs — it's the return address for the server's replies (which come back unicast to the relay, who converts them back for the client), and it's the **scope selector**: the server looks at giaddr, sees `10.20.30.1`, and knows to offer an address from the `10.20.30.0/24` pool. One server, a thousand subnets, each getting answers appropriate to where the question came from.",
           },
           {
+            diagram: {
+              kind: "topo",
+              title: "DHCP relay across the routed core",
+              caption:
+                "The relay converts the client's broadcast to routable unicast; giaddr tells the server which pool to answer from — and where to send the reply.",
+              nodes: [
+                { id: "c", label: "Client", sub: "no address yet", tone: "acc", x: 0, y: 0 },
+                {
+                  id: "r",
+                  label: "Relay",
+                  sub: "giaddr 10.20.30.1",
+                  tone: "l3",
+                  x: 1,
+                  y: 0,
+                },
+                { id: "core", label: "routed core", tone: "dim", x: 2, y: 0, shape: "cloud" },
+                { id: "s", label: "DHCP server", sub: "one, central", tone: "ok", x: 3, y: 0 },
+              ],
+              links: [
+                { from: "c", to: "r", label: "broadcast", dashed: true },
+                { from: "r", to: "core", label: "unicast" },
+                { from: "core", to: "s", label: "giaddr → scope" },
+              ],
+            },
+          },
+          {
             p: "This is the missing mechanism behind N06's enterprise picture: 802.1X drops you on a VLAN, and 'each VLAN maps to its own subnet with its own DHCP scope' — now you know *how* one central server serves them all, and why a wrong helper-address or a giaddr mismatch produces a whole VLAN of 169.254 clients while every other VLAN hums along. Per-VLAN DHCP failure is a relay-configuration diagnosis, not a server-down diagnosis.",
           },
           {
@@ -132,6 +197,52 @@ export const NET_DHCP: Module[] = [
         blocks: [
           {
             p: "Like ARP (N02), DHCP has **no authentication** — it predates the hostile internet, and any device on the segment may answer a DISCOVER. A **rogue DHCP server** that replies faster than the real one hands the victim its choice of gateway and DNS: instant on-path position, the L3 sibling of ARP spoofing and a cousin of the WPAD hijack from P04. The blunt sibling attack is **starvation**: DISCOVER with thousands of spoofed MACs until the legitimate pool is empty, then rogue answers are the only answers.",
+          },
+          {
+            diagram: {
+              kind: "seq",
+              title: "rogue DHCP: first answer wins",
+              caption:
+                "No authentication means the fastest OFFER hands the attacker gateway, DNS, and — via option 121 — the victim's route table.",
+              actors: [
+                { id: "v", label: "Victim", tone: "acc" },
+                { id: "rg", label: "Rogue", sub: "answers fastest", tone: "bad" },
+                { id: "real", label: "Real server", tone: "dim" },
+              ],
+              steps: [
+                {
+                  from: "v",
+                  to: "real",
+                  label: "DISCOVER",
+                  sub: "broadcast — anyone may answer",
+                  dashed: true,
+                },
+                {
+                  from: "rg",
+                  to: "v",
+                  label: "OFFER — first!",
+                  sub: "attacker's gateway + DNS",
+                  tone: "bad",
+                },
+                {
+                  from: "real",
+                  to: "v",
+                  label: "OFFER",
+                  sub: "too late",
+                  tone: "dim",
+                  dashed: true,
+                },
+                { from: "v", to: "rg", label: "REQUEST" },
+                {
+                  from: "rg",
+                  to: "v",
+                  label: "ACK",
+                  sub: "option 121: hostile routes",
+                  tone: "bad",
+                },
+                { note: "victim's traffic now transits the attacker", tone: "bad" },
+              ],
+            },
           },
           {
             p: "The wired-enterprise defense is **DHCP snooping**: the switch (which sees every frame — N02) marks ports as trusted (toward the real server or relay) or untrusted (everything else) and *drops server-role messages arriving on untrusted ports*. No OFFERs from the intern's desk. The bindings the switch learns this way also feed Dynamic ARP Inspection — the ARP-spoofing countermeasure — which is a tidy dependency: securing L2 trust starts with policing DHCP.",

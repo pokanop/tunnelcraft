@@ -30,15 +30,27 @@ export const CORE_MODULES: Module[] = [
             p: "Encapsulation is the mechanic that ties it together: each layer prepends a header to the payload it received. A VPN is recursive encapsulation — a full IP packet becomes the **payload** of another protocol.",
           },
           {
-            code: {
-              lang: "text",
-              body: `A WireGuard-tunneled web request, on the wire:
-
-[ Ethernet ][ IP (you -> VPN server) ][ UDP :51820 ][ WG transport header ]
-  [ encrypted: [ IP (you -> website) ][ TCP :443 ][ TLS ][ HTTP ] ]
-
-The inner packet is a complete, routable IP packet.
-The outer stack exists only to carry it across the underlay.`,
+            diagram: {
+              kind: "packet",
+              title: "A WireGuard-tunneled web request, on the wire",
+              segs: [
+                { label: "Eth", tone: "l2" },
+                { label: "IP", sub: "you → VPN", tone: "l3" },
+                { label: "UDP", sub: ":51820", tone: "l4" },
+                { label: "WG", sub: "transport", tone: "acc" },
+                {
+                  label: "encrypted",
+                  tone: "acc",
+                  inner: [
+                    { label: "IP", sub: "you → site", tone: "l3" },
+                    { label: "TCP", sub: ":443", tone: "l4" },
+                    { label: "TLS", tone: "l6" },
+                    { label: "HTTP", tone: "l7" },
+                  ],
+                },
+              ],
+              caption:
+                "The inner packet is a complete, routable IP packet; the outer stack exists only to carry it across the underlay.",
             },
           },
           {
@@ -130,14 +142,18 @@ default via 192.168.1.1 dev wlan0        # the underlay default
             p: "Every link has an MTU — the largest frame it will carry, typically 1500 bytes on Ethernet. Tunnels add headers **inside** that limit, so the overlay MTU must shrink. WireGuard over IPv4 costs 60 bytes; over IPv6, 80. Hence the canonical `wg0` MTU of 1420.",
           },
           {
-            code: {
-              lang: "text",
-              body: `underlay MTU                 1500
-- outer IPv6 header            40
-- outer UDP header              8
-- WG type + index + counter    16
-- Poly1305 auth tag            16
-= safe inner MTU             1420`,
+            diagram: {
+              kind: "packet",
+              title: "Spending the 1500-byte underlay MTU (WG over IPv6)",
+              segs: [
+                { label: "IPv6", sub: "40 B", tone: "l3" },
+                { label: "UDP", sub: "8 B", tone: "l4" },
+                { label: "WG header", sub: "16 B", tone: "acc" },
+                { label: "inner IP packet", sub: "up to 1420 B", tone: "ok" },
+                { label: "auth tag", sub: "16 B", tone: "acc" },
+              ],
+              caption:
+                "40 + 8 + 16 + 16 bytes of tunnel overhead inside 1500 leave 1420 for the inner packet — the canonical wg0 MTU.",
             },
           },
           {
@@ -259,6 +275,25 @@ fn main() -> std::io::Result<()> {
             p: "TCP turns unreliable packets into a reliable, ordered byte stream: sequence numbers, acknowledgments, retransmission timers, congestion windows. It opens with the three-way handshake — SYN, SYN-ACK, ACK — which is also where MSS is negotiated (your N01 clamping target) and where a full round trip is spent before any data moves.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "The three-way handshake",
+              actors: [
+                { id: "c", label: "client", tone: "l4" },
+                { id: "s", label: "server", tone: "l4" },
+              ],
+              steps: [
+                { from: "c", to: "s", label: "SYN", sub: "seq=x, MSS offer" },
+                { from: "s", to: "c", label: "SYN-ACK", sub: "seq=y, ack=x+1" },
+                { from: "c", to: "s", label: "ACK", sub: "ack=y+1", tone: "ok" },
+                { note: "established — one full RTT before any data", tone: "dim" },
+                { from: "c", to: "s", label: "data", sub: "paced by ack + cwnd", tone: "ok" },
+              ],
+              caption:
+                "One round trip spent before byte one — the cost QUIC folds into its crypto handshake and WireGuard's 1-RTT design echoes.",
+            },
+          },
+          {
             p: "The reason you never tunnel naively over TCP: **TCP-over-TCP meltdown**. The inner connection retransmits on loss; so does the outer one. When the underlay drops a packet, both control loops back off and retransmit against each other, and throughput collapses exactly when the network is stressed. OpenVPN's TCP mode exists only as a firewall-escape hatch; MASQUE (S02) solves the same problem properly with QUIC's unreliable DATAGRAM frames.",
           },
           {
@@ -376,12 +411,35 @@ fn main() -> std::io::Result<()> {
             p: "Network Address Translation lets a whole LAN hide behind one public IP. Your router rewrites the source address and port of outbound packets, records the mapping in a table, and reverses the rewrite for replies. It works so transparently that most software never notices — until that software is a VPN trying to receive unsolicited packets.",
           },
           {
-            code: {
-              lang: "text",
-              body: `inside                      NAT table                     outside
-192.168.1.7:51820  ->  [ 192.168.1.7:51820 <-> :41000 ]  ->  203.0.113.9:41000
-
-reply to 203.0.113.9:41000 -> table lookup -> 192.168.1.7:51820`,
+            diagram: {
+              kind: "seq",
+              title: "One datagram through NAT, and back",
+              actors: [
+                { id: "app", label: "app", sub: "192.168.1.7:51820", tone: "l7" },
+                { id: "nat", label: "NAT", sub: "203.0.113.9", tone: "l3" },
+                { id: "srv", label: "server", tone: "l4" },
+              ],
+              steps: [
+                { from: "app", to: "nat", label: "UDP out", sub: "src 192.168.1.7:51820" },
+                { note: "mapping recorded: 192.168.1.7:51820 ⇄ :41000", tone: "acc" },
+                {
+                  from: "nat",
+                  to: "srv",
+                  label: "rewritten",
+                  sub: "src 203.0.113.9:41000",
+                  tone: "acc",
+                },
+                { from: "srv", to: "nat", label: "reply", sub: "dst 203.0.113.9:41000" },
+                {
+                  from: "nat",
+                  to: "app",
+                  label: "translated",
+                  sub: "dst 192.168.1.7:51820",
+                  tone: "ok",
+                },
+              ],
+              caption:
+                "The mapping row is temporary state: nobody outside can create it, and it evaporates when idle.",
             },
           },
           {
@@ -432,6 +490,22 @@ reply to 203.0.113.9:41000 -> table lookup -> 192.168.1.7:51820`,
         blocks: [
           {
             p: "A DNS query walks from stub resolver → recursive resolver → root → TLD → authoritative servers, with caching at every step. For a VPN client, DNS is less about the protocol and more about **which resolver gets the question**. If tunnel traffic is encrypted but DNS queries still go to the ISP's resolver in plaintext, you have built a privacy product that broadcasts every site the user visits. That is the classic **DNS leak**.",
+          },
+          {
+            diagram: {
+              kind: "flow",
+              title: "Where a name goes",
+              nodes: [
+                { label: "stub", sub: "app / OS", tone: "l7" },
+                { label: "recursive", sub: "the leak point", tone: "acc" },
+                { label: "root", tone: "dim" },
+                { label: "TLD", sub: ".com", tone: "dim" },
+                { label: "auth", sub: "example.com", tone: "l7" },
+              ],
+              arrows: ["query", "referral", "referral", "answer"],
+              caption:
+                "Caching at every hop — but privacy is decided at hop one: which recursive resolver hears every name the user visits.",
+            },
           },
           {
             ul: [
@@ -526,6 +600,27 @@ reply to 203.0.113.9:41000 -> table lookup -> 192.168.1.7:51820`,
         blocks: [
           {
             p: "Rust's core deal: every value has exactly one owner; the value is dropped when the owner goes out of scope; you may lend it out as many shared references (`&T`) as you like, **or** one exclusive reference (`&mut T`) — never both at once. In networking terms: a packet buffer can be inspected by many readers or mutated by one writer, and the compiler proves no reader ever sees a half-written packet. Data races become type errors.",
+          },
+          {
+            diagram: {
+              kind: "state",
+              title: "What the borrow checker allows",
+              states: [
+                { id: "shared", label: "&T (shared)", x: 0, y: 0, tone: "l4" },
+                { id: "owned", label: "owned", x: 1, y: 0, tone: "acc" },
+                { id: "excl", label: "&mut (excl)", x: 2, y: 0, tone: "ok" },
+                { id: "moved", label: "moved", x: 1, y: 1, tone: "dim" },
+              ],
+              edges: [
+                { from: "owned", to: "shared", label: "&T, many", bend: 24 },
+                { from: "shared", to: "owned", label: "all end", bend: 24 },
+                { from: "owned", to: "excl", label: "&mut, one", bend: 24 },
+                { from: "excl", to: "owned", label: "ends", bend: 24 },
+                { from: "owned", to: "moved", label: "transmit(buf)", tone: "bad" },
+              ],
+              caption:
+                "Many readers or one writer, never both — and after a move the old name is gone: use-after-send is a compile error.",
+            },
           },
           {
             code: {
@@ -776,6 +871,26 @@ transmit(packet);              // hand it off for good`,
             p: "A VPN daemon is the poster child for async: dozens of sockets and timers, each idle 99.9% of the time. Thread-per-socket wastes stacks and context switches; async multiplexes them all onto a few threads. The machinery: an `async fn` compiles into a state machine implementing `Future`. Calling it does nothing. A runtime (tokio) **polls** it; when it would block, it returns `Pending` after registering a wake-up with the OS (epoll/kqueue/IOCP), and the thread moves on to other work.",
           },
           {
+            diagram: {
+              kind: "state",
+              title: "Life of a Future",
+              states: [
+                { id: "created", label: "created", x: 0, y: 0, tone: "dim" },
+                { id: "polled", label: "polled", x: 1, y: 0, tone: "acc" },
+                { id: "ready", label: "Ready(T)", x: 2, y: 0, tone: "ok" },
+                { id: "pending", label: "Pending", x: 1, y: 1, tone: "l4" },
+              ],
+              edges: [
+                { from: "created", to: "polled", label: "first poll" },
+                { from: "polled", to: "ready", label: "done", tone: "ok" },
+                { from: "polled", to: "pending", label: "would block", bend: 22 },
+                { from: "pending", to: "polled", label: "waker fires", bend: 22 },
+              ],
+              caption:
+                "Nothing runs until polled; a blocked task registers a waker and costs the thread nothing until the OS wakes it.",
+            },
+          },
+          {
             code: {
               lang: "rust",
               body: `// This function does NOTHING until awaited.
@@ -994,6 +1109,32 @@ loop {
             p: "UDP gives you message boundaries for free. TCP does not — it is a featureless byte river, and 'one write' does **not** mean 'one read'. Any protocol over TCP needs **framing**: a rule for where messages start and end. Length-prefixing is the workhorse: 4 bytes of big-endian length, then that many bytes of payload.",
           },
           {
+            diagram: {
+              kind: "packet",
+              title: "Length-prefixed frames in the byte river",
+              segs: [
+                {
+                  label: "frame 1",
+                  tone: "l4",
+                  inner: [
+                    { label: "len", sub: "4 B, BE", tone: "acc" },
+                    { label: "payload", sub: "len bytes" },
+                  ],
+                },
+                {
+                  label: "frame 2",
+                  tone: "l4",
+                  inner: [
+                    { label: "len", sub: "4 B, BE", tone: "acc" },
+                    { label: "payload", sub: "len bytes" },
+                  ],
+                },
+              ],
+              caption:
+                "TCP hands you one continuous stream — the prefix is the only thing that says where a message ends and the next begins.",
+            },
+          },
+          {
             code: {
               lang: "rust",
               body: `use tokio::io::AsyncReadExt;
@@ -1190,6 +1331,22 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
           {
             note: "The entire trick of a VPN client is: get the OS to route interesting traffic to your TUN, read the packets, encrypt them, and send them out a normal UDP socket bound to the real interface. Everything else is bookkeeping.",
             label: "the one-sentence VPN",
+          },
+          {
+            diagram: {
+              kind: "flow",
+              title: "The one-sentence VPN, drawn",
+              nodes: [
+                { label: "app", sub: "socket write", tone: "l7" },
+                { label: "kernel", sub: "routes to tun0", tone: "l3" },
+                { label: "TUN fd", sub: "read()", tone: "acc" },
+                { label: "engine", sub: "encrypt", tone: "acc" },
+                { label: "UDP", sub: "real NIC", tone: "l4" },
+              ],
+              arrows: ["route", "plaintext", "wrap", "ciphertext"],
+              caption:
+                "Read, encrypt, send — inbound runs the same pump in reverse, and the UDP socket stays pinned to the physical interface.",
+            },
           },
           {
             p: "Because the TUN fd is just a file descriptor, it plugs straight into your async runtime: wrap it in `AsyncFd` or use a crate that already did, and `select!` over TUN reads, socket reads, and config updates in one loop.",
@@ -1396,6 +1553,30 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
             p: "**Message 3 — first transport packet.** The initiator's first encrypted data packet doubles as handshake confirmation. If there's no data to send, a keepalive serves. Total cost to an encrypted tunnel: one round trip.",
           },
           {
+            diagram: {
+              kind: "seq",
+              title: "Noise_IK in three messages",
+              actors: [
+                { id: "i", label: "initiator", sub: "knows server pubkey", tone: "acc" },
+                { id: "r", label: "responder", tone: "acc2" },
+              ],
+              steps: [
+                { from: "i", to: "r", label: "1 initiation", sub: "eph pub + enc static + ts" },
+                { from: "r", to: "i", label: "2 response", sub: "eph pub + confirm" },
+                { note: "HKDF → two directional transport keys", tone: "acc" },
+                {
+                  from: "i",
+                  to: "r",
+                  label: "3 transport",
+                  sub: "counter 0 — confirms",
+                  tone: "ok",
+                },
+              ],
+              caption:
+                "One round trip to keys because the responder's identity is known in advance — the K in IK.",
+            },
+          },
+          {
             p: "**DoS armor:** handshake initiations cost the responder CPU (DH is not free). Under load, a responder can reply with a **cookie** — a lightweight MAC over the sender's source IP — and require it be echoed before doing real work. Spoofed-source floods die cheaply; honest initiators retry with the cookie.",
           },
           {
@@ -1499,6 +1680,33 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
           },
           {
             p: "Read that twice, because it fuses **routing and identity**. A packet claiming to be from 10.0.0.3 is only accepted if it decrypted under the key *assigned* 10.0.0.3. IP spoofing inside the tunnel is structurally impossible — there is no separate ACL to misconfigure.",
+          },
+          {
+            diagram: {
+              kind: "stack",
+              title: "One table, two jobs",
+              cols: [
+                {
+                  title: "outbound = routing",
+                  cells: [
+                    { label: "dst 10.0.0.3", sub: "plaintext from TUN", tone: "l3" },
+                    { label: "AllowedIPs match", sub: "10.0.0.0/24 → peer B", tone: "acc" },
+                    { label: "encrypt", sub: "peer B's key", tone: "ok" },
+                  ],
+                },
+                {
+                  title: "inbound = identity",
+                  cells: [
+                    { label: "decrypts OK", sub: "under peer B's key", tone: "ok" },
+                    { label: "src in AllowedIPs?", sub: "10.0.0.3 ∈ 10.0.0.0/24", tone: "acc" },
+                    { label: "accept or drop", sub: "no separate ACL", tone: "l3" },
+                  ],
+                },
+              ],
+              gapLabel: "same table",
+              caption:
+                "Decrypting under a key and claiming an address are one check — the peer assigned an IP is the only one believed to be it.",
+            },
           },
           {
             p: "`AllowedIPs = 0.0.0.0/0` therefore means two things at once: route *everything* out through this peer, and accept *any* inner source from it. That's a full-tunnel default gateway. `AllowedIPs = 10.0.0.0/24` is a split tunnel: only that subnet goes in, only that subnet is believed coming out.",
@@ -1666,6 +1874,41 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
           },
           {
             p: "Why it works: A's outbound packet toward B creates an outbound mapping in A's NAT — so when B's packet arrives moments later, A's NAT sees a 'reply' to an existing flow and lets it through. Ditto in mirror. Both NATs are tricked into believing they initiated. First packets may die crossing in flight; retry a few times and the hole stabilizes.",
+          },
+          {
+            diagram: {
+              kind: "seq",
+              title: "Hole punching, blow by blow",
+              actors: [
+                { id: "a", label: "peer A", tone: "acc" },
+                { id: "na", label: "NAT A", tone: "l3" },
+                { id: "nb", label: "NAT B", tone: "l3" },
+                { id: "b", label: "peer B", tone: "acc" },
+              ],
+              steps: [
+                { note: "reflexive addresses already swapped via signaling" },
+                {
+                  from: "a",
+                  to: "nb",
+                  label: "probe",
+                  sub: "opens mapping in NAT A",
+                  tone: "bad",
+                  dashed: true,
+                },
+                { note: "…dies at NAT B: no mapping there yet", tone: "bad" },
+                {
+                  from: "b",
+                  to: "a",
+                  label: "probe",
+                  sub: "a 'reply' to NAT A's flow",
+                  tone: "ok",
+                },
+                { from: "a", to: "b", label: "probe", sub: "now matches NAT B too", tone: "ok" },
+                { note: "hole open — direct UDP both ways", tone: "ok" },
+              ],
+              caption:
+                "Each outbound probe plants the mapping that admits the other side's packet — both NATs believe they initiated.",
+            },
           },
           {
             p: "**Symmetric NATs** break the trick: the mapping A learned from STUN was for the flow *to the STUN server*; the flow to B gets a fresh, different port. Countermeasure: the non-symmetric side sprays probes across a range of likely ports — the birthday paradox makes a hit surprisingly cheap (hundreds of probes for good odds, not tens of thousands). Symmetric-to-symmetric usually means relay.",
@@ -1861,6 +2104,35 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
             p: "The winning shape, proven by Mullvad, Tailscale, and WireGuard's own apps: a **Rust core** owning everything portable — protocol, crypto, packet loop, routing decisions, state machine, config handling — and a thin **native shell** per platform owning everything the OS insists on: device creation, permission prompts, lifecycle callbacks, UI.",
           },
           {
+            diagram: {
+              kind: "stack",
+              title: "Core/shell: the shape that ships",
+              cols: [
+                {
+                  title: "native shell — per OS",
+                  cells: [
+                    { label: "UI", tone: "l7" },
+                    { label: "permissions", sub: "prompts, entitlements", tone: "l7" },
+                    { label: "lifecycle", sub: "OS callbacks", tone: "l7" },
+                    { label: "device creation", sub: "TUN / rings / fd", tone: "l2" },
+                  ],
+                },
+                {
+                  title: "Rust core — one",
+                  cells: [
+                    { label: "protocol + crypto", tone: "acc" },
+                    { label: "packet loop", tone: "acc" },
+                    { label: "routing + state", tone: "acc" },
+                    { label: "config", sub: "snapshots", tone: "ok" },
+                  ],
+                },
+              ],
+              gapLabel: "narrow FFI",
+              caption:
+                "connect() and events cross a narrow boundary: the shell never sees a packet, the core never sees a permission dialog.",
+            },
+          },
+          {
             p: "Define the boundary as a narrow, semantic API: `connect(config)`, `disconnect()`, `set_network_available(bool)`, `events() → stream`. The shell calls down; the core emits events up. The shell never sees a packet; the core never sees a permission dialog.",
           },
           {
@@ -1958,6 +2230,41 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
           },
           {
             p: "A Flow is the normalized representation of one logical connection: its 5-tuple (src/dst address, ports, protocol), plus metadata — originating app if known, ingress source, posture context, timestamps. Every ingress adapter's only job is to turn its raw input *into* a Flow; everything downstream speaks Flow and nothing else.",
+          },
+          {
+            diagram: {
+              kind: "topo",
+              title: "Everything becomes a Flow",
+              nodes: [
+                { id: "tun", label: "TUN", sub: "packets", tone: "l3", x: 0, y: 0 },
+                { id: "socks", label: "SOCKS", sub: "streams", tone: "l4", x: 0, y: 1 },
+                { id: "app", label: "app API", sub: "datagrams", tone: "l7", x: 0, y: 2 },
+                {
+                  id: "flow",
+                  label: "Flow",
+                  sub: "5-tuple + meta",
+                  tone: "acc",
+                  x: 1,
+                  y: 1,
+                  shape: "round",
+                },
+                { id: "core", label: "dispatch", sub: "rules + posture", tone: "acc", x: 2, y: 1 },
+                { id: "wg", label: "WireGuard", sub: "Packet", tone: "acc2", x: 3, y: 0 },
+                { id: "masque", label: "MASQUE", sub: "Datagram", tone: "l5", x: 3, y: 1 },
+                { id: "direct", label: "direct", sub: "Stream", tone: "dim", x: 3, y: 2 },
+              ],
+              links: [
+                { from: "tun", to: "flow" },
+                { from: "socks", to: "flow" },
+                { from: "app", to: "flow" },
+                { from: "flow", to: "core", label: "route", tone: "acc" },
+                { from: "core", to: "wg" },
+                { from: "core", to: "masque" },
+                { from: "core", to: "direct" },
+              ],
+              caption:
+                "N ingresses and M engines meet at one core: normalize at the edge, decide once, transport by declared Carriage.",
+            },
           },
           {
             p: "This is the same instinct as R04's anti-corruption boundaries, applied to the data plane: normalize at the edge, keep the core dialect-free. One dispatch core means one place to route, one place to observe, one place to test.",
@@ -2175,6 +2482,32 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
           },
           {
             p: "**State-machine honesty**: the connection lifecycle (Disconnected → Connecting → Handshaking → Up → Degraded → Reconnecting) should be an explicit enum with logged transitions — half of user-visible bugs are illegal transitions that an explicit machine makes unrepresentable (R01's philosophy at system scale).",
+          },
+          {
+            diagram: {
+              kind: "state",
+              title: "The connection lifecycle, made explicit",
+              states: [
+                { id: "disc", label: "Disconnected", x: 0, y: 0, tone: "dim" },
+                { id: "conn", label: "Connecting", x: 1, y: 0 },
+                { id: "hand", label: "Handshaking", x: 2, y: 0, tone: "acc" },
+                { id: "up", label: "Up", x: 3, y: 0, tone: "ok" },
+                { id: "rec", label: "Reconnecting", x: 2, y: 1, tone: "acc" },
+                { id: "deg", label: "Degraded", x: 3, y: 1, tone: "bad" },
+              ],
+              edges: [
+                { from: "disc", to: "conn", label: "connect" },
+                { from: "conn", to: "hand", label: "socket up" },
+                { from: "hand", to: "up", label: "1-RTT", tone: "ok" },
+                { from: "up", to: "deg", label: "keepalives missed", tone: "bad", bend: 22 },
+                { from: "deg", to: "up", label: "traffic resumes", tone: "ok", bend: 22 },
+                { from: "deg", to: "rec", label: "path lost" },
+                { from: "rec", to: "hand", label: "retry" },
+                { from: "up", to: "disc", label: "disconnect", tone: "dim", bend: -70 },
+              ],
+              caption:
+                "Log every transition; anything not drawn here is a bug the enum makes unrepresentable.",
+            },
           },
           {
             p: "**Staged rollout**: config versioning + instant rollback (S02's snapshot pattern), canary percentages, and leak tests as release gates. A VPN's failure modes are privacy failures; ship like it.",
