@@ -1,0 +1,327 @@
+/* ============================================================
+   HEADER — brand, primary nav, sync state, mobile menu.
+   Desktop: brand · nav links · sync bar · actions.
+   ≤920px: nav + extras collapse into the mobile menu.
+   ============================================================ */
+
+.hdr {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background: var(--hdr-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.hdr-in {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px var(--gutter);
+  max-width: var(--content-w);
+  margin: 0 auto;
+  min-height: var(--hdr-h);
+  position: relative;
+}
+
+/* ---------- brand ---------- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+}
+.brand:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 3px;
+  border-radius: var(--r-xs);
+}
+.logo {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: block;
+}
+.wordmark {
+  font-family: var(--font-disp);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-align: left;
+  line-height: 1.2;
+}
+.wordmark small {
+  display: block;
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+  margin-top: 2px;
+}
+.wordmark .tx {
+  color: var(--acc);
+}
+
+/* ---------- primary nav (desktop) ---------- */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--sp-2);
+}
+.navlink {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--mut);
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+}
+.navlink:hover {
+  color: var(--ink);
+  background: var(--panel2);
+}
+.navlink:focus-visible,
+.acct:focus-visible,
+.iconbtn:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+/* ---------- right cluster ---------- */
+.hdr-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+.acct {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--acc2);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  height: 38px; /* single height for every header action */
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.acct .trunc {
+  max-width: 116px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acct:hover {
+  border-color: var(--acc);
+}
+.hdr-right .acct,
+.hdr-right .streakchip {
+  flex: none; /* never squeeze or truncate header actions */
+}
+/* every header action shares one 38px control height */
+.hdr-right .acct,
+.navlink,
+.menubtn {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.streakchip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+}
+.themebtn {
+  min-width: 92px;
+  justify-content: center;
+}
+.themebtn-ico {
+  width: 38px;
+  padding: 0;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--mut);
+}
+.themebtn-ico:hover {
+  color: var(--ink);
+}
+.searchbtn svg {
+  vertical-align: -2px;
+}
+
+/* ---------- sync state ---------- */
+.sync {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 120px;
+}
+.sync-t {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-wide);
+  color: var(--mut);
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sync-t b {
+  color: var(--acc);
+  font-weight: 500;
+}
+.syncbar {
+  width: 120px;
+  height: 4px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.syncbar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--acc), var(--acc2));
+  border-radius: 2px;
+  transition: width var(--dur-3) var(--ease-out);
+}
+
+/* ---------- streak + review badge ---------- */
+.streakchip {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--acc);
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
+  border-radius: var(--r-full);
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.reviewbtn {
+  position: relative;
+}
+.duebadge {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 16px;
+  text-align: center;
+  background: var(--acc);
+  color: var(--on-acc);
+  border-radius: var(--r-full);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 4px;
+}
+
+/* ---------- mobile menu ---------- */
+.menubtn {
+  display: none;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  width: 38px;
+  height: 38px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex: none;
+}
+.menubtn:hover {
+  border-color: var(--acc);
+}
+.menubtn svg {
+  display: block;
+}
+.mnav {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-menu);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow-2);
+  padding: var(--sp-2) var(--gutter) var(--sp-4);
+}
+.mnav.open {
+  display: block;
+}
+.mnav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--track-wide);
+  padding: 14px 2px;
+  cursor: pointer;
+}
+.mnav-link:hover {
+  color: var(--acc);
+}
+.mnav-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
+  flex-wrap: wrap;
+}
+.mnav-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---------- responsive collapse ---------- */
+@media (max-width: 1080px) {
+  .sync {
+    display: none;
+  }
+}
+@media (max-width: 920px) {
+  .nav,
+  .hdr-right .themebtn-ico,
+  .hdr-right .acct-user {
+    display: none;
+  }
+  .menubtn {
+    display: flex;
+  }
+}
+@media (max-width: 640px) {
+  .searchbtn .lbl {
+    display: none;
+  }
+  .searchbtn {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+}

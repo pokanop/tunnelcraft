@@ -156,7 +156,7 @@ export function ExamView({ track, user, prog, update, go }: ExamViewProps) {
     const passed = pct >= EXAM_PASS;
     const right = paper.reduce((n, eq, i) => n + (sel[i] === eq.q.a ? 1 : 0), 0);
     return (
-      <div className="wrap">
+      <div className="wrap wrap-lesson">
         <button className="back" onClick={() => go({ v: "home" })}>
           ← BACK TO COURSE
         </button>
@@ -232,7 +232,7 @@ export function ExamView({ track, user, prog, update, go }: ExamViewProps) {
   /* ---------- running ---------- */
   const low = left <= 120;
   return (
-    <div className="wrap">
+    <div className="wrap wrap-lesson">
       <div className={"exambar" + (low ? " examlow" : "")} role="timer" aria-live="off">
         <span className="exam-t">
           {track.code} FINAL · {answered}/{paper.length} answered

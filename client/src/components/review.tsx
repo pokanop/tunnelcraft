@@ -109,7 +109,7 @@ export function ReviewView({ byId, prog, onAnswer, go }: ReviewViewProps) {
 
   const c = prog.rev[key];
   return (
-    <div className="wrap">
+    <div className="wrap wrap-lesson">
       <button className="back" onClick={() => go({ v: "home" })}>
         ← exit review
       </button>

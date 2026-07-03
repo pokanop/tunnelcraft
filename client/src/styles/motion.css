@@ -1,0 +1,295 @@
+/* ============================================================
+   TUNNELCRAFT MOTION
+   Micro-interactions & transitions. Everything here is
+   decorative: `prefers-reduced-motion` disables it wholesale.
+   ============================================================ */
+
+/* ---------- page entrance: route views fade-rise on mount ---------- */
+@keyframes tc-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+#main > * {
+  animation: tc-page-in var(--dur-3) var(--ease-out) both;
+}
+
+/* ---------- scroll reveal (useReveal hook adds .rv, then .rv-in) ---------- */
+.rv {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity var(--dur-3) var(--ease-out),
+    transform var(--dur-3) var(--ease-out);
+  transition-delay: var(--rv-delay, 0s);
+}
+.rv-in {
+  opacity: 1;
+  transform: none;
+}
+/* staggered variant: wrapper (.rvs) is inert, children cascade */
+.rvs > * {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity var(--dur-3) var(--ease-out),
+    transform var(--dur-3) var(--ease-out);
+}
+.rvs.rv-in > * {
+  opacity: 1;
+  transform: none;
+}
+.rvs.rv-in > *:nth-child(2) {
+  transition-delay: 0.07s;
+}
+.rvs.rv-in > *:nth-child(3) {
+  transition-delay: 0.14s;
+}
+.rvs.rv-in > *:nth-child(4) {
+  transition-delay: 0.21s;
+}
+.rvs.rv-in > *:nth-child(5) {
+  transition-delay: 0.28s;
+}
+.rvs.rv-in > *:nth-child(6) {
+  transition-delay: 0.35s;
+}
+.rvs.rv-in > *:nth-child(n + 7) {
+  transition-delay: 0.4s;
+}
+
+/* ---------- interactive press: shared tactile feedback ---------- */
+.btn,
+.card,
+.chip,
+.acct,
+.tok,
+.opt,
+.ck,
+.sylrow,
+.dash-track,
+.markrow,
+.land-track {
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active,
+.chip:active,
+.acct:active,
+.tok:active,
+.opt:active {
+  transform: scale(0.97);
+}
+.card:active,
+.sylrow:active,
+.dash-track:active,
+.markrow:active,
+.land-track:active {
+  transform: translateY(0) scale(0.99);
+}
+.btn,
+.chip,
+.acct,
+.tok,
+.opt,
+.ck,
+.sylrow,
+.dash-track,
+.markrow {
+  transition:
+    border-color var(--dur-1) ease,
+    background var(--dur-1) ease,
+    color var(--dur-1) ease,
+    box-shadow var(--dur-1) ease,
+    transform var(--dur-1) var(--ease-out);
+}
+
+/* primary button: lift + glow */
+.btn:not(.ghost):not(.okbtn):not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px var(--acc-glow);
+}
+
+/* cards get a shadow as they lift */
+.card:hover,
+.land-track:hover {
+  box-shadow: var(--shadow-2);
+}
+
+/* ---------- badge / chip pops ---------- */
+@keyframes tc-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.duebadge,
+.streakchip,
+.notesdot {
+  animation: tc-pop var(--dur-2) var(--ease-pop) both;
+}
+
+/* ---------- verdicts: settle right, shake wrong ---------- */
+@keyframes tc-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+@keyframes tc-settle {
+  0% {
+    transform: scale(0.96);
+  }
+  60% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.verdict.badv,
+.opt.wrongopt,
+.fld input.wr,
+.matchsel.wrongsel {
+  animation: tc-shake 0.3s ease both;
+}
+.verdict.good,
+.opt.rightopt,
+.scoreline.pass {
+  animation: tc-settle 0.3s var(--ease-out) both;
+}
+
+/* checklist tick */
+@keyframes tc-tick {
+  0% {
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.ck.ckon .box {
+  animation: tc-tick var(--dur-2) var(--ease-pop) both;
+}
+
+/* ---------- search overlay: veil fade + panel pop ---------- */
+@keyframes tc-veil-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes tc-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.searchveil {
+  animation: tc-veil-in var(--dur-2) ease both;
+}
+.searchbox {
+  animation: tc-panel-in var(--dur-2) var(--ease-pop) both;
+}
+
+/* ---------- mobile menu ---------- */
+@keyframes tc-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mnav {
+  animation: tc-menu-in var(--dur-2) var(--ease-out) both;
+}
+
+/* ---------- sync bar: stripe shimmer while saving ---------- */
+@keyframes tc-stripe {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 24px 0;
+  }
+}
+.syncbar.saving i {
+  background-image: repeating-linear-gradient(-45deg, var(--acc) 0 6px, var(--acc2) 6px 12px);
+  background-size: 24px 100%;
+  animation: tc-stripe 0.6s linear infinite;
+}
+
+/* ---------- streak flame breathes ---------- */
+@keyframes tc-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.streakchip .zap {
+  display: inline-block;
+  animation: tc-breathe 2.4s ease-in-out infinite;
+}
+
+/* ---------- exam clock: heartbeat when time is low ---------- */
+@keyframes tc-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  12% {
+    transform: scale(1.06);
+  }
+}
+.exambar.examlow .exam-clock {
+  animation: tc-beat 1s ease-in-out infinite;
+}
+
+/* ---------- reduced motion: kill it all, keep state readable ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .tc *,
+  #main > * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .rv,
+  .rvs > * {
+    opacity: 1;
+    transform: none;
+  }
+  .hs {
+    opacity: 0.85;
+  }
+}

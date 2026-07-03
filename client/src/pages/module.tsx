@@ -117,9 +117,18 @@ function ModuleView({
   // Every module has at least one lesson, so tabs is never empty.
   const tab = initialTab && tabs.some((x) => x.key === initialTab) ? initialTab : tabs[0]!.key;
   const setTab = (k: string) => go({ v: "mod", id: mod.id, tab: k });
+  const chipsRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [mod.id, tab]);
+  /* keep the active chip visible in the scrollable tab strip */
+  useEffect(() => {
+    const el = chipsRef.current?.querySelector<HTMLElement>(".chip.on");
+    if (!el || !chipsRef.current) return;
+    const c = chipsRef.current;
+    const target = el.offsetLeft - c.clientWidth / 2 + el.offsetWidth / 2;
+    c.scrollTo({ left: target, behavior: "smooth" });
+  }, [tab]);
 
   const tIdx = tabs.findIndex((t) => t.key === tab);
   const cur = tabs[tIdx];
@@ -191,7 +200,7 @@ function ModuleView({
   }, [mod.id, tab]);
 
   return (
-    <div className="wrap">
+    <div className="wrap wrap-lesson">
       <div className="modhead">
         <button className="back" onClick={() => go({ v: "home" })}>
           ← all modules
@@ -209,7 +218,7 @@ function ModuleView({
         </div>
       </div>
 
-      <div className="chips" role="tablist">
+      <div className="chips" role="tablist" ref={chipsRef}>
         {tabs.map((t, i) => (
           <button
             key={t.key}

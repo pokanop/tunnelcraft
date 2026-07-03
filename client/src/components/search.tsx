@@ -92,7 +92,7 @@ export function SearchOverlay({ open, onClose, onJump }: SearchOverlayProps) {
         <input
           ref={inputRef}
           className="searchinput"
-          placeholder="Search 113 lessons, labs & quizzes…  (↑↓ to move, Enter to jump)"
+          placeholder="Search lessons, labs & quizzes…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}
@@ -134,6 +134,17 @@ export function SearchOverlay({ open, onClose, onJump }: SearchOverlayProps) {
             ))}
           </ul>
         )}
+        <div className="sr-hints" aria-hidden="true">
+          <span>
+            <kbd>↑↓</kbd> move
+          </span>
+          <span>
+            <kbd>↵</kbd> jump
+          </span>
+          <span>
+            <kbd>esc</kbd> close
+          </span>
+        </div>
       </div>
     </div>
   );

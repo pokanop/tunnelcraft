@@ -1,0 +1,137 @@
+/* ============================================================
+   TUNNELCRAFT DESIGN TOKENS
+   Single source of truth for color, type, space, radius,
+   elevation, z-index, and motion. See DESIGN.md.
+   ============================================================ */
+
+:root {
+  /* ---------- layout ---------- */
+  --content-w: 1000px;
+  --lesson-w: 760px;
+  --hdr-h: 57px; /* keep in sync with .hdr-in padding + content */
+
+  /* ---------- spacing scale (4px base) ---------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 64px;
+  /* fluid gutters: 16px on phones → 24px on desktop */
+  --gutter: clamp(16px, 4vw, 24px);
+  --sect-y: clamp(40px, 8vw, 64px);
+
+  /* ---------- typography ---------- */
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-disp: "Martian Mono", ui-monospace, monospace;
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-base: 14.5px;
+  --fs-md: 16px;
+  --fs-lg: 19px;
+  --fs-xl: clamp(22px, 3.4vw, 32px);
+  --fs-2xl: clamp(26px, 4vw, 38px);
+  --fs-3xl: clamp(24px, 5vw, 42px);
+  --track-tight: 0.04em;
+  --track-wide: 0.12em;
+  --track-caps: 0.18em;
+
+  /* ---------- radius ---------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-full: 999px;
+
+  /* ---------- elevation ---------- */
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.5);
+
+  /* ---------- z-index ladder ---------- */
+  --z-header: 40;
+  --z-chips: 30;
+  --z-menu: 60;
+  --z-overlay: 80;
+  --z-skip: 100;
+
+  /* ---------- motion ---------- */
+  --dur-1: 0.15s; /* hovers, presses */
+  --dur-2: 0.25s; /* reveals, menus */
+  --dur-3: 0.45s; /* page & progress */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.34, 1.4, 0.64, 1); /* gentle overshoot */
+}
+
+/* ---------- color: dark (default) ---------- */
+.tc {
+  --bg: #0f1215;
+  --panel: #161b21;
+  --panel2: #1c232b;
+  --line: #28313b;
+  --ink: #e9eef3;
+  --body: #cbd5df; /* long-form reading color */
+  --mut: #93a1ae;
+  --dim: #5c6873;
+  --acc: #f76b33;
+  --acc2: #ffa872;
+  --on-acc: #14100d; /* text on accent surfaces */
+  --ok: #4ec9a4;
+  --bad: #e5646e;
+  --code-bg: #0b0e11;
+  /* layer palette (OSI glyphs, diagram tones) */
+  --l1: #5c6873;
+  --l2: #5fa8d3;
+  --l3: #4ec9a4;
+  --l4: #a78bfa;
+  --l5: #c08abf;
+  --l6: #d3a05f;
+  --l7: #e0b458;
+  /* derived tints */
+  --acc-soft: rgba(247, 107, 51, 0.12);
+  --acc-glow: rgba(247, 107, 51, 0.35);
+  --ok-soft: rgba(78, 201, 164, 0.1);
+  --bad-soft: rgba(229, 100, 110, 0.1);
+  --veil: rgba(10, 12, 14, 0.72);
+  --hdr-bg: rgba(15, 18, 21, 0.92);
+}
+
+/* ---------- color: light ---------- */
+[data-theme="light"] .tc {
+  --bg: #f2efe7;
+  --panel: #fbf9f3;
+  --panel2: #eae6db;
+  --line: #d6d0c2;
+  --ink: #1d242b;
+  --body: #333d46;
+  --mut: #4c5863;
+  --dim: #83796a;
+  --acc: #d9531e;
+  --acc2: #a63e14;
+  --on-acc: #fff7f2;
+  --ok: #0e7d61;
+  --bad: #be3341;
+  --l1: #7d7466;
+  --l2: #2e7eae;
+  --l3: #0e7d61;
+  --l4: #6c50cf;
+  --l5: #96588f;
+  --l6: #9c6e2f;
+  --l7: #8f7414;
+  --acc-soft: rgba(217, 83, 30, 0.1);
+  --acc-glow: rgba(217, 83, 30, 0.25);
+  --ok-soft: rgba(14, 125, 97, 0.07);
+  --bad-soft: rgba(190, 51, 65, 0.08);
+  --veil: rgba(40, 38, 32, 0.45);
+  --hdr-bg: rgba(242, 239, 231, 0.92);
+  --shadow-1: 0 2px 8px rgba(60, 50, 30, 0.08);
+  --shadow-2: 0 8px 24px rgba(60, 50, 30, 0.12);
+  --shadow-3: 0 24px 60px rgba(60, 50, 30, 0.22);
+}

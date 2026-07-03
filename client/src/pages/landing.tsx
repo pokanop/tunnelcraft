@@ -1,6 +1,7 @@
 /* Marketing landing — the front door for signed-out visitors.
    Signed-in visitors are bounced straight to their dashboard. */
 import { Link, Navigate } from "@tanstack/react-router";
+import { Reveal } from "../lib/reveal";
 import { getToken } from "../lib/api";
 import { TRACKS } from "../curriculum/tracks";
 import { byId, grandTotals, totalHours } from "../lib/stats";
@@ -146,7 +147,7 @@ export function LandingPage() {
         <div className="wrap">
           <p className="gridttl">// THE PATH</p>
           <h2 className="land-h2">Four tracks. One skill set.</h2>
-          <div className="land-tracks">
+          <Reveal className="land-tracks" stagger>
             {TRACKS.map((tr) => {
               const meta = trackMeta(tr.modules);
               return (
@@ -166,7 +167,7 @@ export function LandingPage() {
                 </Link>
               );
             })}
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -175,7 +176,7 @@ export function LandingPage() {
         <div className="wrap">
           <p className="gridttl">// BUILT FOR RETENTION</p>
           <h2 className="land-h2">Not a video course. A training system.</h2>
-          <div className="land-feats">
+          <Reveal className="land-feats" stagger>
             <div className="land-feat">
               <span className="land-feat-k">#</span>
               <b>Hands-on labs</b>
@@ -225,13 +226,13 @@ export function LandingPage() {
                 Optional study reminders when a day is about to slip.
               </p>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ---------- glossary + rust teaser ---------- */}
       <section className="land-sec land-alt">
-        <div className="wrap land-duo">
+        <Reveal className="wrap land-duo">
           <div>
             <p className="gridttl">// FIELD GLOSSARY</p>
             <h3 className="land-h3">225 terms, deep-linked</h3>
@@ -253,7 +254,7 @@ export function LandingPage() {
               SEE THE CURRICULUM →
             </button>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ---------- final CTA ---------- */}

@@ -2,6 +2,7 @@
    Views render into the router outlet; app-wide state travels via AppContext. */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
+import { Header } from "./components/header";
 import { SearchOverlay } from "./components/search";
 import { VerifyBanner } from "./components/verify";
 import { deckStats, recordReview } from "./lib/review";
@@ -203,9 +204,9 @@ export default function App() {
     ? sync === "saving"
       ? "SAVING…"
       : sync === "offline"
-        ? "OFFLINE — LOCAL COPY SAFE"
+        ? "OFFLINE · COPY SAFE"
         : "SYNCED " + pct + "%"
-    : "GUEST · LOCAL " + pct + "%";
+    : "LOCAL · " + pct + "%";
 
   const state: AppState = {
     prog,
@@ -225,94 +226,20 @@ export default function App() {
         <a className="skiplink" href="#main">
           Skip to content
         </a>
-        <header className="hdr">
-          <div className="hdr-in">
-            <button
-              className="wordmark"
-              onClick={() =>
-                go(user ? { v: "dashboard" } : started ? { v: "home" } : { v: "landing" })
-              }
-            >
-              TUNNEL<span className="tx">CRAFT</span>
-              <small>NETWORKING · RUST · VPN ENGINEERING</small>
-            </button>
-            <div className="hdr-right">
-              <button
-                className="acct"
-                onClick={() => go({ v: "home" })}
-                aria-label="Curriculum map"
-              >
-                CURRICULUM
-              </button>
-              <div className="sync">
-                <span className="sync-t">{syncLabel}</span>
-                <div className="syncbar">
-                  <i style={{ width: pct + "%" }} />
-                </div>
-              </div>
-              <button
-                className="acct"
-                onClick={() => setSearchOpen(true)}
-                aria-label="Search the curriculum (slash or Ctrl+K)"
-              >
-                ⌕ SEARCH
-              </button>
-              <button
-                className="acct reviewbtn"
-                onClick={() => go({ v: "review" })}
-                aria-label={due > 0 ? "Review mode — " + due + " cards due" : "Review mode"}
-              >
-                REVIEW
-                {due > 0 && (
-                  <span className="duebadge" aria-hidden="true">
-                    {due}
-                  </span>
-                )}
-              </button>
-              <button
-                className="acct"
-                onClick={() => go({ v: "glossary" })}
-                aria-label="Field glossary"
-              >
-                GLOSSARY
-              </button>
-              {(prog.meta.streak ?? 0) > 0 && (
-                <span
-                  className="streakchip"
-                  title={
-                    "Daily streak: " +
-                    prog.meta.streak +
-                    " (best " +
-                    (prog.meta.bestStreak ?? prog.meta.streak) +
-                    ")"
-                  }
-                >
-                  ⚡{prog.meta.streak}
-                </span>
-              )}
-              <button
-                className="acct themebtn"
-                onClick={cycleTheme}
-                title="Theme: cycles system → light → dark"
-              >
-                {theme === "system" ? "◐ SYSTEM" : theme === "light" ? "○ LIGHT" : "● DARK"}
-              </button>
-              {user ? (
-                <button
-                  className="acct"
-                  onClick={() => go({ v: "account" })}
-                  title="Account & sessions"
-                >
-                  {(user.displayName || user.email).toUpperCase()}
-                </button>
-              ) : (
-                <button className="acct" onClick={() => go({ v: "auth" })}>
-                  SIGN IN
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        <Header
+          user={user}
+          pct={pct}
+          syncLabel={syncLabel}
+          saving={sync === "saving"}
+          due={due}
+          streak={prog.meta.streak ?? 0}
+          bestStreak={prog.meta.bestStreak ?? prog.meta.streak ?? 0}
+          theme={theme}
+          cycleTheme={cycleTheme}
+          onBrand={() => go(user ? { v: "dashboard" } : started ? { v: "home" } : { v: "landing" })}
+          onSearch={() => setSearchOpen(true)}
+          go={go}
+        />
 
         <VerifyBanner
           user={user}
