@@ -118,6 +118,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n07",
   },
   {
+    t: "Beacon",
+    d: "The frame an AP broadcasts several times a second advertising its SSID, rates, and capabilities — how clients discover networks passively; a **probe request/response** is the active version of the same discovery.",
+    mod: "n03",
+  },
+  {
     t: "BGP",
     d: "Border Gateway Protocol — the path-vector protocol gluing the internet's autonomous systems together. Route selection encodes business relationships as much as topology, which is why leaks and hijacks are policy failures.",
     mod: "n08",
@@ -141,6 +146,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Bufferbloat",
     d: "Latency caused by oversized buffers in routers and modems: loss-based TCP fills them before anything drops, so every packet waits in a long queue. It is why one big upload wrecks your video call.",
     mod: "n07",
+  },
+  {
+    t: "Builder pattern",
+    d: "The idiomatic construction pattern for objects with many optional fields: `Config::builder().peer(k).endpoint(e).build()?` — validation concentrates in `build()`, avoiding Option-soup constructor arguments.",
+    mod: "r05",
   },
   {
     t: "Cache poisoning",
@@ -213,9 +223,19 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "r04",
   },
   {
+    t: "CLOSE_WAIT",
+    d: "The state where the kernel has ACKed the peer's FIN and is waiting for **your application** to `close()` the socket. Unlike TIME_WAIT it never clears itself — CLOSE_WAIT piling up is always an application-side leak.",
+    mod: "n07",
+  },
+  {
     t: "CNAME record",
     d: "Canonical name — a DNS alias saying “this name is really that name”; resolution restarts at the target. It cannot coexist with other record types at the same name.",
     mod: "n10",
+  },
+  {
+    t: "Compare-and-swap (CAS)",
+    d: "The atomic primitive under every lock and lock-free structure — `compare_exchange`: 'if the value is still what I expect, replace it; otherwise tell me what it was.' Rust's spelling takes two memory orderings, one for success and one for failure.",
+    mod: "r07",
   },
   {
     t: "Congestion window",
@@ -226,6 +246,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "CONNECT-IP",
     d: "RFC 9484 — the MASQUE method extending HTTP CONNECT to whole IP packets carried in QUIC DATAGRAM frames: a full VPN data plane inside what looks like HTTPS.",
     mod: "m12",
+  },
+  {
+    t: "Connection draining",
+    d: "A load balancer letting a deregistering backend finish its in-flight requests while refusing to send it new ones — the mechanism behind zero-downtime deploys. Also called deregistration delay.",
+    mod: "n16",
   },
   {
     t: "Cookie (WireGuard)",
@@ -263,6 +288,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n13",
   },
   {
+    t: "Deauthentication attack",
+    d: "Spoofing an unauthenticated 802.11 management frame 'from' the AP to kick a victim off Wi-Fi — repeated for denial of service, or once to force a reconnect onto an evil twin or re-capture the 4-way handshake. **PMF** (mandatory in WPA3) closes it.",
+    mod: "n03",
+  },
+  {
     t: "Default deny",
     d: "The stance where nothing passes unless explicitly allowed — the foundation of serious firewall policy. Its opposite, default allow plus blocklists, always misses something.",
     mod: "n13",
@@ -296,6 +326,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "dig",
     d: "The DNS query tool of record: ask any server for any record type, see the full response with TTLs and flags, and walk delegation with `+trace`.",
     mod: "n12",
+  },
+  {
+    t: "DMZ",
+    d: "Demilitarized zone — the network segment where internet-facing servers live, filtered from both the internet *and* the internal LAN, so a compromised public server can't pivot inward. The classic blast-radius segmentation pattern.",
+    mod: "n13",
   },
   {
     t: "DNS leak",
@@ -363,6 +398,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "p01",
   },
   {
+    t: "epoll",
+    d: "Linux's readiness-based I/O notification API: it tells you which sockets a syscall would now succeed on, and you do the I/O yourself. The counterpoint is **completion** models (Windows IOCP, io_uring), where the kernel does the I/O and tells you when it's done — Rust async grew up readiness-shaped.",
+    mod: "r06",
+  },
+  {
     t: "Ethernet frame",
     d: "The L2 unit on wired networks: destination and source MAC addresses, an EtherType saying what the payload is, the payload itself, and a trailing FCS checksum.",
     mod: "n02",
@@ -383,9 +423,24 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "r07",
   },
   {
+    t: "Fail-closed",
+    d: "The safety posture where a failure blocks traffic rather than letting it escape unencrypted — what a **kill switch** implements. The opposite, fail-open, is what naive route-based VPNs do when the tunnel process dies.",
+    mod: "m11",
+  },
+  {
+    t: "Fast retransmit",
+    d: "TCP resending a segment after **three duplicate ACKs** instead of waiting for the retransmission timeout — the receiver's repeated 'I'm still missing X' is treated as proof of loss, recovering in a round-trip instead of a timeout.",
+    mod: "n07",
+  },
+  {
     t: "FFI",
     d: "Foreign Function Interface — calling across the C ABI in either direction. The rules: `#[repr(C)]` layouts, no unwinding across the boundary, and explicit ownership contracts — who allocates must free.",
     mod: "r07",
+  },
+  {
+    t: "FIN",
+    d: "The TCP flag that closes **one direction** of a connection. A clean teardown is FIN → ACK in each direction (four packets, often coalesced to three); the side that sends the first FIN inherits TIME_WAIT.",
+    mod: "n07",
   },
   {
     t: "Forward proxy",
@@ -418,9 +473,29 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "r06",
   },
   {
+    t: "fwmark",
+    d: "A Linux firewall mark stamped on packets (by nftables/iptables or a socket option) that policy-routing rules can match to choose a routing table — how WireGuard's own encrypted packets escape the tunnel's default route on Linux.",
+    mod: "p03",
+  },
+  {
+    t: "GSO/GRO",
+    d: "Generic Segmentation/Receive Offload — the kernel hands userspace one giant (up to 64 KB) 'packet' plus a header describing how to split it, so a VPN encrypts per batch instead of per MTU-sized packet. The single biggest userspace-VPN throughput win of recent years.",
+    mod: "p03",
+  },
+  {
     t: "GTP",
     d: "GPRS Tunneling Protocol — the encapsulation mobile cores use to carry your IP traffic from the radio network to the packet gateway. Your phone's internet is itself a tunnel.",
     mod: "n14w",
+  },
+  {
+    t: "Handshake",
+    d: "Any protocol's opening ritual establishing shared state before data flows. Which one depends on context: TCP's **three-way handshake** (SYN exchange), TLS's certificate-and-keys handshake, Wi-Fi's **4-way handshake** (session keys), or WireGuard's 1-RTT Noise handshake.",
+    mod: "n07",
+  },
+  {
+    t: "Happens-before",
+    d: "The visibility edge in the memory model: a `Release` store paired with an `Acquire` load guarantees the acquiring thread sees every write the releasing thread made beforehand. Without such an edge, threads have no agreed ordering of events.",
+    mod: "r07",
   },
   {
     t: "Happy Eyeballs",
@@ -478,9 +553,24 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "p02",
   },
   {
+    t: "Interior mutability",
+    d: "Mutating data through a shared `&T` — the pattern behind `Cell`, `RefCell`, `Mutex`, and atomics, all built on **UnsafeCell**, the one primitive the compiler blesses for it. The escape hatch from 'shared XOR mutable' that moves the check to runtime (or to the hardware).",
+    mod: "r07",
+  },
+  {
     t: "IPsec",
     d: "The IP-layer VPN suite behind most site-to-site tunnels: IKE negotiates keys, then ESP encrypts and authenticates the packets, classically in tunnel mode.",
     mod: "n16",
+  },
+  {
+    t: "Jitter",
+    d: "Variation in latency — how much packet arrival times wobble around the average. Real-time traffic (calls, games) suffers more from jitter than from steady latency; a jitter buffer trades added delay for smoothness.",
+    mod: "n02",
+  },
+  {
+    t: "Keepalive",
+    d: "A small periodic packet whose only job is to keep state alive somewhere else: refreshing a NAT or firewall's idle timeout on your mapping, or (TCP keepalive) detecting a dead peer. WireGuard's version is **persistent keepalive**.",
+    mod: "m03",
   },
   {
     t: "Kill switch",
@@ -513,9 +603,19 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n08",
   },
   {
+    t: "Lost wakeup",
+    d: "The async failure mode where readiness arrived but nobody called the current waker: the task sleeps forever with no error. Its benign sibling is the **spurious wakeup** — polled with no progress available, legal and merely wasteful. That asymmetry shapes every executor contract.",
+    mod: "r06",
+  },
+  {
     t: "MAC address",
     d: "Media Access Control address — the 48-bit hardware identifier of a network interface, used for delivery within one L2 network. It never survives a router hop.",
     mod: "n02",
+  },
+  {
+    t: "MAC randomization",
+    d: "Modern devices present a different random MAC address per SSID (sometimes per connection) so the real hardware address can't be passively tracked across networks — also the reason DHCP reservations and captive-portal exemptions mysteriously stop matching.",
+    mod: "n06w",
   },
   {
     t: "MASQUE",
@@ -633,6 +733,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n12",
   },
   {
+    t: "Noise floor",
+    d: "The ambient RF energy on a channel from everything that isn't your signal. What matters is **SNR** — signal minus noise floor — which is why 'full bars' (strong signal) can still mean slow Wi-Fi when the floor is high.",
+    mod: "n04w",
+  },
+  {
     t: "Noise Protocol Framework",
     d: "A catalog of formally analyzed handshake patterns composed from DH, HKDF, and an AEAD. WireGuard uses the **Noise_IK** pattern: one round trip, forward secrecy, and the initiator's identity hidden.",
     mod: "m08",
@@ -713,6 +818,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n04",
   },
   {
+    t: "PEAP",
+    d: "Protected EAP — the ubiquitous enterprise Wi-Fi login: a TLS tunnel to the RADIUS server with a legacy username/password exchange (MSCHAPv2) inside. It inherits every password weakness, and skipped certificate validation turns it into a credential-stealing evil-twin target.",
+    mod: "n06w",
+  },
+  {
     t: "Persistent keepalive",
     d: "A small encrypted packet a WireGuard peer emits every N seconds purely to keep its NAT mapping alive, so a peer behind NAT stays reachable for inbound traffic.",
     mod: "m09",
@@ -736,6 +846,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Poll",
     d: "The contract at async Rust's heart: the executor calls `poll`; the future either completes with `Ready` or returns `Pending` after arranging — via the Waker — to be woken when progress is possible.",
     mod: "r06",
+  },
+  {
+    t: "Port forwarding",
+    d: "A manual NAT rule mapping a public port to a specific private address:port, so unsolicited inbound traffic can reach a host behind NAT. What home routers offer — and what CGNAT (no public IP of your own) makes impossible.",
+    mod: "m03",
   },
   {
     t: "Property-based testing",
@@ -763,6 +878,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n10",
   },
   {
+    t: "Rekey",
+    d: "Replacing session keys with freshly derived ones on a schedule — WireGuard runs a new handshake roughly every two minutes — so any single compromised session key decrypts only a small window of traffic. The continuous, operational face of **forward secrecy**.",
+    mod: "m08",
+  },
+  {
     t: "repr(C)",
     d: "The attribute forcing C's field order and padding on a struct. Rust's default layout is deliberately unspecified, so any type crossing FFI needs this.",
     mod: "r07",
@@ -776,6 +896,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "RFC 1918",
     d: "The private IPv4 ranges — `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` — never routed on the public internet and therefore usable by anyone behind NAT.",
     mod: "n05",
+  },
+  {
+    t: "Ring buffer",
+    d: "A fixed-size circular queue where producer and consumer chase each other's positions — the shared-memory structure (wintun on Windows, GSO batching on Linux) that turns per-packet kernel↔userspace syscalls into amortized batch operations.",
+    mod: "p02",
   },
   {
     t: "Roaming (WireGuard)",
@@ -798,9 +923,19 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n04w",
   },
   {
+    t: "RST",
+    d: "TCP's rude exit — no handshake, just 'this conversation does not exist.' Sent when connecting to a closed port (`Connection refused`), when a peer reboots mid-connection, or by a censoring middlebox. RST vs silence on connect is a key diagnostic fork: refused means a host answered; timeout means a firewall ate the packet.",
+    mod: "n07",
+  },
+  {
     t: "SAE",
     d: "Simultaneous Authentication of Equals — WPA3's password-authenticated key exchange; unlike WPA2's handshake, captured traffic cannot be brute-forced offline against the password.",
     mod: "n03",
+  },
+  {
+    t: "Scoped routing",
+    d: "Darwin's twist on routing: routes and sockets can be bound to a specific interface *past* the default table. It's how macOS/iOS keep captive-portal probes and system chatter on the physical interface while your tunnel's utun holds the default route.",
+    mod: "p01",
   },
   {
     t: "Security group",
@@ -888,6 +1023,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n13",
   },
   {
+    t: "Stateless firewall",
+    d: "A packet filter that judges every packet in isolation with no connection memory — the opposite of a **stateful firewall**, and what a cloud NACL is. Its tell: you must explicitly allow ephemeral-port return traffic that a stateful filter admits automatically.",
+    mod: "n13",
+  },
+  {
     t: "Stub resolver",
     d: "The tiny DNS client inside every OS: it asks a recursive resolver and waits — no hierarchy-walking of its own. Which resolver it asks is precisely what VPN DNS settings fight over.",
     mod: "n10",
@@ -938,6 +1078,16 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "m02",
   },
   {
+    t: "TCP teardown",
+    d: "How a TCP connection ends cleanly — also called the **four-way close** or graceful close: each direction closes independently with its own FIN → ACK exchange. The first closer passes through FIN_WAIT into TIME_WAIT; the passive side sits in CLOSE_WAIT until the app closes, then LAST_ACK. RST is the abrupt alternative.",
+    mod: "n07",
+  },
+  {
+    t: "TCP termination",
+    d: "Two meanings, worth disambiguating. (1) Ending a connection — see **TCP teardown** (graceful FIN exchange) and **RST** (abrupt). (2) What a proxy or load balancer does: it *terminates* the client's TCP connection and opens its own to the backend, which is why backends see the balancer's IP unless X-Forwarded-For or PROXY protocol restores the original source.",
+    mod: "n07",
+  },
+  {
     t: "TCP-over-TCP meltdown",
     d: "The pathology of tunneling one TCP stream inside another: both layers retransmit and back off independently, compounding delays until throughput collapses. It is why serious VPN protocols carry traffic over UDP.",
     mod: "m02",
@@ -958,6 +1108,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n07",
   },
   {
+    t: "Throughput",
+    d: "The data rate you actually get, as opposed to **bandwidth** — the link's rated capacity. Overhead, loss, retransmissions, and congestion eat the difference, which is why a '1 Gbps' link never moves a gigabit of your file per second.",
+    mod: "n02",
+  },
+  {
     t: "TIME_WAIT",
     d: "The state the side that actively closes a TCP connection lingers in so stray delayed segments cannot corrupt a new connection reusing the same port pair.",
     mod: "n07",
@@ -966,6 +1121,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "TLS",
     d: "Transport Layer Security — the protocol that upgrades a byte stream with authenticated encryption: a handshake verifies the server's certificate chain and agrees keys, then records encrypt the data. TLS 1.3 made forward secrecy mandatory.",
     mod: "n11",
+  },
+  {
+    t: "TLS termination",
+    d: "Decrypting TLS at an edge proxy or L7 load balancer instead of on the backend: the balancer holds the certificate, terminates the client's TLS session, and forwards plaintext (or re-encrypted) traffic inward. It's what lets a balancer read HTTP paths and headers to route — and why the backend no longer sees the client directly.",
+    mod: "n16",
   },
   {
     t: "Tokio",
@@ -1113,9 +1273,19 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "m09",
   },
   {
+    t: "Work-stealing",
+    d: "Tokio's scheduling strategy: each worker thread has its own task queue, and idle workers steal from busy ones — plus a LIFO slot that runs a just-woken task immediately while its data is hot in cache.",
+    mod: "r06",
+  },
+  {
     t: "WPA3",
     d: "Wi-Fi Protected Access 3 — the current Wi-Fi security generation: SAE replaces WPA2's offline-crackable PSK handshake, and protected management frames become mandatory.",
     mod: "n03",
+  },
+  {
+    t: "WPAD",
+    d: "Web Proxy Auto-Discovery — how a client finds its proxy configuration automatically, via DHCP option 252 or by fetching `http://wpad.<domain>/wpad.dat`. Convenient, and a classic attack surface: whoever answers that probe decides where your traffic goes.",
+    mod: "p04",
   },
   {
     t: "X25519",
