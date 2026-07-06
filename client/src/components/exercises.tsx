@@ -2,12 +2,14 @@ import { useState } from "react";
 import { md, hl } from "../lib/render";
 import type { MissFn } from "../lib/review";
 import type { CardQuestion } from "../lib/progress";
+import { AnswerBlock, HintBlock, RevealBtn, useQuestionAttempts, useWrongAttempts } from "./guidance";
 import type {
   BlankExercise,
   CheckExercise,
   CidrExercise,
   Module,
   OrderExercise,
+  Question,
 } from "../curriculum/types";
 
 /* ============================================================
@@ -41,15 +43,17 @@ export function OrderEx({ ex, done, onDone }: OrderExProps) {
   });
   const [picked, setPicked] = useState<string[]>([]);
   const [state, setState] = useState<"idle" | "wrong" | "done">(done ? "done" : "idle");
+  const [revealed, setRevealed] = useState(false);
+  const { recordWrong, reset: resetAttempts, showHint, showReveal } = useWrongAttempts();
 
   const pick = (t: string) => {
-    if (state === "done") return;
+    if (state === "done" || revealed) return;
     setPool(pool.filter((x) => x !== t));
     setPicked([...picked, t]);
     setState("idle");
   };
   const unpick = (t: string) => {
-    if (state === "done") return;
+    if (state === "done" || revealed) return;
     setPicked(picked.filter((x) => x !== t));
     setPool([...pool, t]);
     setState("idle");
@@ -58,12 +62,24 @@ export function OrderEx({ ex, done, onDone }: OrderExProps) {
     if (picked.join("|") === ex.items.join("|")) {
       setState("done");
       onDone();
-    } else setState("wrong");
+    } else {
+      recordWrong();
+      setState("wrong");
+    }
+  };
+  const reveal = () => {
+    setPicked(ex.items);
+    setPool([]);
+    setRevealed(true);
+    setState("done");
+    onDone();
   };
   const reset = () => {
     setPool(shuffle(ex.items));
     setPicked([]);
     setState("idle");
+    setRevealed(false);
+    resetAttempts();
   };
 
   return (
@@ -124,18 +140,30 @@ export function OrderEx({ ex, done, onDone }: OrderExProps) {
         <button className="btn ghost" onClick={reset}>
           SHUFFLE & RETRY
         </button>
-        {state === "wrong" && (
+        {state === "wrong" && !revealed && (
           <span className="verdict badv" role="alert">
             ✗ not quite — reorder and try again
           </span>
         )}
+        {showReveal && state !== "done" && !revealed && <RevealBtn onClick={reveal} />}
         {state === "done" && (
           <span className="verdict good" role="status">
-            sequence locked in
+            {revealed ? "answer revealed — review the sequence" : "sequence locked in"}
           </span>
         )}
       </div>
-      {state === "done" && ex.why && <p className="why">{md(ex.why)}</p>}
+      {showHint && state === "wrong" && !revealed && (
+        <HintBlock>
+          {ex.why ??
+            "Work through the prompt one causal step at a time — each stage should follow naturally from the one before it."}
+        </HintBlock>
+      )}
+      {revealed && (
+        <AnswerBlock>
+          {ex.items.map((t, i) => (i + 1) + ". " + t).join("\n\n")}
+        </AnswerBlock>
+      )}
+      {state === "done" && !revealed && ex.why && <p className="why">{md(ex.why)}</p>}
     </div>
   );
 }
@@ -150,6 +178,8 @@ interface BlankExProps {
 export function BlankEx({ ex, done, onDone }: BlankExProps) {
   const [sel, setSel] = useState<Record<number, number>>({});
   const [state, setState] = useState<"idle" | "wrong" | "done">(done ? "done" : "idle");
+  const [revealed, setRevealed] = useState(false);
+  const { recordWrong, reset: resetAttempts, showHint, showReveal } = useWrongAttempts();
   // Shuffled display order per blank so the authored position of the right
   // option is never a tell; values stay original indices.
   const [optOrder] = useState<number[][]>(() =>
@@ -163,7 +193,26 @@ export function BlankEx({ ex, done, onDone }: BlankExProps) {
     if (ok) {
       setState("done");
       onDone();
-    } else setState("wrong");
+    } else {
+      recordWrong();
+      setState("wrong");
+    }
+  };
+  const reveal = () => {
+    const ans: Record<number, number> = {};
+    ex.blanks.forEach((b, i) => {
+      ans[i] = b.a;
+    });
+    setSel(ans);
+    setRevealed(true);
+    setState("done");
+    onDone();
+  };
+  const retry = () => {
+    setSel({});
+    setState("idle");
+    setRevealed(false);
+    resetAttempts();
   };
 
   return (
@@ -195,6 +244,7 @@ export function BlankEx({ ex, done, onDone }: BlankExProps) {
                   value={sel[bi] === undefined ? "" : sel[bi]}
                   disabled={state === "done"}
                   onChange={(e) => {
+                    if (revealed) return;
                     setSel({ ...sel, [bi]: parseInt(e.target.value, 10) });
                     setState("idle");
                   }}
@@ -220,18 +270,37 @@ export function BlankEx({ ex, done, onDone }: BlankExProps) {
           </button>
         )}
         {state === "done" && <button className="btn okbtn">✓ COMPILES (SPIRITUALLY)</button>}
-        {state === "wrong" && (
+        {state === "wrong" && !revealed && (
+          <button className="btn ghost" onClick={retry}>
+            CLEAR & RETRY
+          </button>
+        )}
+        {state === "wrong" && !revealed && (
           <span className="verdict badv" role="alert">
             ✗ wrong choice highlighted — reconsider
           </span>
         )}
+        {showReveal && state !== "done" && !revealed && <RevealBtn onClick={reveal} />}
         {state === "done" && (
           <span className="verdict good" role="status">
-            exactly right
+            {revealed ? "answer revealed — review the code" : "exactly right"}
           </span>
         )}
       </div>
-      {state === "done" && ex.why && <p className="why">{md(ex.why)}</p>}
+      {showHint && state === "wrong" && !revealed && (
+        <HintBlock>
+          {ex.why ??
+            "Each blank should match the API or concept named in the surrounding code — read the lines above and below for context."}
+        </HintBlock>
+      )}
+      {revealed && (
+        <AnswerBlock>
+          {ex.blanks
+            .map((b, i) => "Blank " + (i + 1) + ": `" + b.opts[b.a] + "`")
+            .join("\n\n")}
+        </AnswerBlock>
+      )}
+      {state === "done" && !revealed && ex.why && <p className="why">{md(ex.why)}</p>}
     </div>
   );
 }
@@ -338,6 +407,8 @@ export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
   const [state, setState] = useState<"idle" | "checked">("idle");
   const [marks, setMarks] = useState<Partial<Record<CidrField, boolean>>>({});
   const [solved, setSolved] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const { recordWrong, reset: resetAttempts, showHint, showReveal } = useWrongAttempts();
 
   const check = () => {
     const m = {
@@ -359,16 +430,36 @@ export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
     if (m.net && m.bc && m.hosts) {
       setSolved(solved + 1);
       if (!done) onDone();
+    } else {
+      recordWrong();
     }
+  };
+  const reveal = () => {
+    setVals({ net: prob.net, bc: prob.bc, hosts: String(prob.hosts) });
+    setMarks({ net: true, bc: true, hosts: true });
+    setRevealed(true);
+    setState("checked");
+    setSolved(solved + 1);
+    if (!done) onDone();
   };
   const next = () => {
     setProb(makeProb());
     setVals({ net: "", bc: "", hosts: "" });
     setMarks({});
     setState("idle");
+    setRevealed(false);
+    resetAttempts();
   };
   const allRight = state === "checked" && marks.net && marks.bc && marks.hosts;
-  const fldCls = (k: CidrField) => (state === "checked" ? (marks[k] ? "rt" : "wr") : "");
+  const fldCls = (k: CidrField) =>
+    state === "checked" ? (marks[k] || revealed ? "rt" : "wr") : "";
+  const cidrHint =
+    ex.why ??
+    "/" +
+      prob.p +
+      " keeps the top " +
+      prob.p +
+      " bits. Network = IP AND mask; broadcast = network OR inverted mask; usable hosts = 2^(32−prefix) − 2.";
 
   return (
     <div className="exwrap">
@@ -391,6 +482,7 @@ export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
             placeholder="e.g. 10.4.0.0"
             value={vals.net}
             onChange={(e) => {
+              if (revealed) return;
               setVals({ ...vals, net: e.target.value });
               setState("idle");
             }}
@@ -404,6 +496,7 @@ export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
             placeholder="e.g. 10.4.3.255"
             value={vals.bc}
             onChange={(e) => {
+              if (revealed) return;
               setVals({ ...vals, bc: e.target.value });
               setState("idle");
             }}
@@ -417,6 +510,7 @@ export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
             placeholder="e.g. 1022"
             value={vals.hosts}
             onChange={(e) => {
+              if (revealed) return;
               setVals({ ...vals, hosts: e.target.value });
               setState("idle");
             }}
@@ -435,12 +529,21 @@ export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
             ✓ correct — {solved} solved this session
           </span>
         )}
-        {state === "checked" && !allRight && (
+        {state === "checked" && !allRight && !revealed && (
           <span className="verdict badv" role="alert">
             ✗ red fields are wrong
           </span>
         )}
+        {showReveal && state === "checked" && !allRight && !revealed && (
+          <RevealBtn onClick={reveal} />
+        )}
       </div>
+      {showHint && state === "checked" && !allRight && !revealed && <HintBlock>{cidrHint}</HintBlock>}
+      {revealed && (
+        <AnswerBlock>
+          Network **{prob.net}** · broadcast **{prob.bc}** · **{prob.hosts}** usable hosts.
+        </AnswerBlock>
+      )}
       {allRight && (
         <p className="why">
           /{prob.p} ⇒ mask keeps the top {prob.p} bits. Network = IP AND mask = {prob.net};
@@ -502,14 +605,15 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
   const qs = mod.quiz?.questions ?? []; // only rendered for modules with a quiz
   const [sel, setSel] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
+  const { recordWrong, level, reveal, isRevealed, clearRevealed } = useQuestionAttempts();
   // Render options in a stable per-mount shuffle so the correct answer's
   // authored position never becomes a tell; sel/`a` stay original indices.
   const [order, setOrder] = useState<number[][]>(() =>
     qs.map((q) => shuffle(q.opts.map((_, oi) => oi)))
   );
 
-  const allAnswered = qs.every((_, i) => sel[i] !== undefined);
-  const score = qs.reduce((s, q, i) => s + (sel[i] === q.a ? 1 : 0), 0);
+  const allAnswered = qs.every((_, i) => sel[i] !== undefined || isRevealed(i));
+  const score = qs.reduce((s, q, i) => s + (sel[i] === q.a || isRevealed(i) ? 1 : 0), 0);
   const pct = Math.round((score / qs.length) * 100);
   const passed = pct >= 70;
   const passedBest = best !== undefined && best >= 70;
@@ -519,13 +623,19 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
     onScore(pct);
     if (onMiss)
       qs.forEach((q, i) => {
-        if (sel[i] !== q.a) onMiss(mod.id, i);
+        if (sel[i] !== q.a && !isRevealed(i)) onMiss(mod.id, i);
+        if (sel[i] !== q.a) recordWrong(i);
       });
   };
   const retake = () => {
     setSel({});
     setSubmitted(false);
+    clearRevealed();
     setOrder(qs.map((q) => shuffle(q.opts.map((_, oi) => oi))));
+  };
+  const revealQ = (i: number, q: Question) => {
+    reveal(i);
+    setSel({ ...sel, [i]: q.a });
   };
 
   return (
@@ -544,7 +654,12 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
           {score}/{qs.length} — {pct}% {passed ? "· PASSED" : "· below 70, review and retake"}
         </div>
       )}
-      {qs.map((q, i) => (
+      {qs.map((q, i) => {
+        const qLevel = level(i);
+        const revealed = isRevealed(i);
+        const showQHint = !submitted && qLevel !== "none" && !revealed;
+        const showQReveal = !submitted && qLevel === "reveal" && !revealed;
+        return (
         <div className="q" key={i}>
           <p className="q-q">
             <span className="qn">Q{i + 1}</span>
@@ -554,7 +669,7 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
             const o = q.opts[oi] ?? "";
             let cls = "opt";
             if (!submitted && sel[i] === oi) cls += " selopt";
-            if (submitted && oi === q.a) cls += " rightopt";
+            if ((submitted || revealed) && oi === q.a) cls += " rightopt";
             if (submitted && sel[i] === oi && oi !== q.a) cls += " wrongopt";
             const outcome = !submitted
               ? ""
@@ -567,7 +682,7 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
               <button
                 key={oi}
                 className={cls}
-                disabled={submitted}
+                disabled={submitted || revealed}
                 aria-pressed={sel[i] === oi}
                 aria-label={o + outcome}
                 onClick={() => setSel({ ...sel, [i]: oi })}
@@ -576,13 +691,21 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
               </button>
             );
           })}
+          {showQHint && <HintBlock>{q.why}</HintBlock>}
+          {showQReveal && <RevealBtn onClick={() => revealQ(i, q)} />}
+          {revealed && !submitted && (
+            <AnswerBlock>
+              **{q.opts[q.a]}** — {q.why}
+            </AnswerBlock>
+          )}
           {submitted && (
             <p className="why" role="status">
               {md(q.why)}
             </p>
           )}
         </div>
-      ))}
+      );
+      })}
       <div className="exrow">
         {!submitted && (
           <button className="btn" disabled={!allAnswered} onClick={submit}>
