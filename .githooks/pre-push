@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "pre-push: running bun run check (lint + format:check + typecheck)..."
+bun run check
