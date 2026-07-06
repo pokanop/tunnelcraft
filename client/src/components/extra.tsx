@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { md } from "../lib/render";
 import { shuffle } from "./exercises";
+import { AnswerBlock, HintBlock, RevealBtn, useWrongAttempts } from "./guidance";
 import { PORTS } from "../curriculum/tracks";
 import type { PortEntry } from "../curriculum/tracks";
 import type { MissFn } from "../lib/review";
@@ -17,9 +18,24 @@ export function MatchEx({ ex, done, onDone }: MatchExProps) {
   const defs = useMemo(() => shuffle(ex.pairs.map((p) => p.d)), [ex.id]);
   const [sel, setSel] = useState<string[]>(() => ex.pairs.map(() => ""));
   const [checked, setChecked] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const { recordWrong, reset: resetAttempts, showHint, showReveal } = useWrongAttempts();
   const allPicked = sel.every((s) => s !== "");
   const results: boolean[] | null = checked ? ex.pairs.map((p, i) => sel[i] === p.d) : null;
   const allRight = results !== null && results.every(Boolean);
+
+  const reveal = () => {
+    setSel(ex.pairs.map((p) => p.d));
+    setRevealed(true);
+    setChecked(true);
+    onDone();
+  };
+  const retry = () => {
+    setSel(ex.pairs.map(() => ""));
+    setChecked(false);
+    setRevealed(false);
+    resetAttempts();
+  };
 
   return (
     <div className="exwrap">
@@ -33,7 +49,7 @@ export function MatchEx({ ex, done, onDone }: MatchExProps) {
             <select
               className={"matchsel" + (results ? (results[i] ? " rightsel" : " wrongsel") : "")}
               value={sel[i]}
-              disabled={done}
+              disabled={done || revealed}
               onChange={(e) => {
                 setChecked(false);
                 setSel(sel.map((s, j) => (j === i ? e.target.value : s)));
@@ -65,15 +81,44 @@ export function MatchEx({ ex, done, onDone }: MatchExProps) {
         </>
       ) : (
         <>
-          {checked && results && !allRight && (
+          {checked && results && !allRight && !revealed && (
             <div className="verdict badv" role="alert">
               ✗ {results.filter(Boolean).length}/{ex.pairs.length} correct — wrong rows marked,
               adjust and re-check
             </div>
           )}
-          <button className="btn" disabled={!allPicked} onClick={() => setChecked(true)}>
-            CHECK MATCHES
-          </button>
+          {showHint && checked && !allRight && !revealed && (
+            <HintBlock>
+              {ex.why ??
+                "Each term maps to exactly one definition — eliminate options that describe a different layer or protocol."}
+            </HintBlock>
+          )}
+          {showReveal && checked && !allRight && !revealed && <RevealBtn onClick={reveal} />}
+          {revealed && (
+            <AnswerBlock>
+              {ex.pairs.map((p) => "**" + p.t + "** → " + p.d).join("\n\n")}
+            </AnswerBlock>
+          )}
+          {!revealed && (
+            <>
+              {checked && !allRight && (
+                <button className="btn ghost" onClick={retry}>
+                  CLEAR & RETRY
+                </button>
+              )}
+              <button
+                className="btn"
+                disabled={!allPicked}
+                onClick={() => {
+                  setChecked(true);
+                  const ok = ex.pairs.every((p, i) => sel[i] === p.d);
+                  if (!ok) recordWrong();
+                }}
+              >
+                CHECK MATCHES
+              </button>
+            </>
+          )}
         </>
       )}
     </div>
@@ -100,6 +145,8 @@ export function PortDrill({ ex, done, onDone, miss }: PortDrillProps) {
   const [state, setState] = useState<"ask" | "right" | "wrong">("ask");
   const [streak, setStreak] = useState(0);
   const [best, setBest] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const { recordWrong, reset: resetAttempts, showHint, showReveal } = useWrongAttempts();
 
   const check = () => {
     const ok = parseInt(val.trim(), 10) === prob.port;
@@ -107,29 +154,40 @@ export function PortDrill({ ex, done, onDone, miss }: PortDrillProps) {
     const s = ok ? streak + 1 : 0;
     setStreak(s);
     if (s > best) setBest(s);
-    if (!ok && miss) {
-      const correct = String(prob.port);
-      const others = shuffle(PORTS.filter((p) => p.port !== prob.port))
-        .slice(0, 3)
-        .map((p) => String(p.port));
-      const opts = shuffle([correct, ...others]);
-      miss(
-        "drill:port:" + prob.port,
-        {
-          q: "Which default port does **" + prob.svc + "** use?",
-          opts,
-          a: opts.indexOf(correct),
-          why: prob.svc + " listens on port " + prob.port + " by default.",
-        },
-        "PORT DRILL"
-      );
+    if (!ok) {
+      recordWrong();
+      if (miss) {
+        const correct = String(prob.port);
+        const others = shuffle(PORTS.filter((p) => p.port !== prob.port))
+          .slice(0, 3)
+          .map((p) => String(p.port));
+        const opts = shuffle([correct, ...others]);
+        miss(
+          "drill:port:" + prob.port,
+          {
+            q: "Which default port does **" + prob.svc + "** use?",
+            opts,
+            a: opts.indexOf(correct),
+            why: prob.svc + " listens on port " + prob.port + " by default.",
+          },
+          "PORT DRILL"
+        );
+      }
     }
     if (ok && !done) onDone();
+  };
+  const reveal = () => {
+    setVal(String(prob.port));
+    setRevealed(true);
+    setState("right");
+    if (!done) onDone();
   };
   const next = () => {
     setProb(pickPort(prob.svc));
     setVal("");
     setState("ask");
+    setRevealed(false);
+    resetAttempts();
   };
 
   return (
@@ -148,11 +206,14 @@ export function PortDrill({ ex, done, onDone, miss }: PortDrillProps) {
             inputMode="numeric"
             autoComplete="off"
             className={state === "wrong" ? "wr" : state === "right" ? "rt" : ""}
-            onChange={(e) => setVal(e.target.value)}
+            onChange={(e) => {
+              if (revealed) return;
+              setVal(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                if (state === "ask") check();
-                else next();
+                if (state === "right") next();
+                else if (val.trim()) check();
               }
             }}
           />
@@ -161,23 +222,37 @@ export function PortDrill({ ex, done, onDone, miss }: PortDrillProps) {
       {state === "right" && (
         <div className="verdict good" role="status">
           ✓ {prob.svc} = {prob.port} — streak {streak}
+          {revealed ? " (revealed)" : ""}
         </div>
       )}
-      {state === "wrong" && (
+      {state === "wrong" && !revealed && (
         <div className="verdict badv" role="alert">
-          ✗ {prob.svc} is port {prob.port}
+          ✗ not quite — try again
         </div>
+      )}
+      {showHint && state === "wrong" && !revealed && (
+        <HintBlock>
+          Well-known ports below 1024 follow familiar patterns — HTTP is 80, HTTPS 443, DNS is 53.
+          Think about what protocol **{prob.svc}** uses.
+        </HintBlock>
+      )}
+      {showReveal && state === "wrong" && !revealed && <RevealBtn onClick={reveal} />}
+      {revealed && (
+        <AnswerBlock>
+          **{prob.svc}** listens on port **{prob.port}** by default.
+        </AnswerBlock>
       )}
       <div className="scoreline">
         streak {streak} · best {best}
         {done ? " · ✓ drill logged" : " · first correct answer logs this lab"}
       </div>
-      <div style={{ marginTop: 10 }}>
-        {state === "ask" ? (
+      <div className="exrow" style={{ marginTop: 10 }}>
+        {(state === "ask" || state === "wrong") && !revealed && (
           <button className="btn" disabled={!val.trim()} onClick={check}>
             CHECK
           </button>
-        ) : (
+        )}
+        {state === "right" && (
           <button className="btn ghost" onClick={next}>
             NEXT SERVICE →
           </button>

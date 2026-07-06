@@ -552,6 +552,28 @@
   border-left: 2px solid var(--line);
   padding-left: 10px;
 }
+.hint {
+  color: var(--mut);
+  font-size: 13.5px;
+  margin-top: 10px;
+  border-left: 2px solid var(--acc);
+  padding-left: 10px;
+}
+.hint-lbl {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.14em;
+  color: var(--acc);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.why.revealed {
+  border-left-color: var(--ok);
+}
+.why.revealed .hint-lbl {
+  color: var(--ok);
+}
 .blanksel {
   font-family: var(--font-mono);
   font-size: 12.5px;

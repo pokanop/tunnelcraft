@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { md } from "../lib/render";
 import { shuffle, ipStr } from "./exercises";
+import {
+  AnswerBlock,
+  HintBlock,
+  RevealBtn,
+  useQuestionAttempts,
+  useWrongAttempts,
+} from "./guidance";
 import type { MissFn } from "../lib/review";
 import type {
   HexExercise,
@@ -27,58 +34,86 @@ interface LabQuestionsProps {
 function LabQuestions({ qs, done, onAllRight, onMissQ, onFocusQ }: LabQuestionsProps) {
   const [sel, setSel] = useState<Record<number, number>>({});
   const [checked, setChecked] = useState(false);
-  const allAnswered = qs.every((_, i) => sel[i] !== undefined);
-  const right = qs.reduce((n, q, i) => n + (sel[i] === q.a ? 1 : 0), 0);
+  const { recordWrong, level, reveal, isRevealed, clearRevealed } = useQuestionAttempts();
+  const allAnswered = qs.every((_, i) => sel[i] !== undefined || isRevealed(i));
+  const correctOnOwn = (i: number) => sel[i] === qs[i]!.a && !isRevealed(i);
+  const right = qs.reduce((n, _, i) => n + (correctOnOwn(i) ? 1 : 0), 0);
   const allRight = checked && right === qs.length;
 
   const submit = () => {
     setChecked(true);
     let ok = true;
     qs.forEach((q, i) => {
-      if (sel[i] !== q.a) {
+      if (!correctOnOwn(i)) {
         ok = false;
-        if (onMissQ) onMissQ(i);
+        if (sel[i] !== q.a && !isRevealed(i)) {
+          recordWrong(i);
+          if (onMissQ) onMissQ(i);
+        }
       }
     });
     if (ok) onAllRight();
   };
+  const retry = () => {
+    setChecked(false);
+    clearRevealed();
+    setSel({});
+  };
+  const revealQ = (i: number) => {
+    reveal(i);
+    setSel({ ...sel, [i]: qs[i]!.a });
+    setChecked(false);
+  };
 
   return (
     <>
-      {qs.map((q, i) => (
-        <div className="q" key={i} onClick={() => onFocusQ && onFocusQ(i)}>
-          <p className="q-q">
-            <span className="qn">Q{i + 1}</span>
-            {md(q.q)}
-          </p>
-          {q.opts.map((o, oi) => {
-            let cls = "opt";
-            if (!checked && sel[i] === oi) cls += " selopt";
-            if (checked && oi === q.a) cls += " rightopt";
-            if (checked && sel[i] === oi && oi !== q.a) cls += " wrongopt";
-            return (
-              <button
-                key={oi}
-                className={cls}
-                disabled={checked && allRight}
-                aria-pressed={sel[i] === oi}
-                onClick={() => {
-                  setChecked(false);
-                  setSel({ ...sel, [i]: oi });
-                  if (onFocusQ) onFocusQ(i);
-                }}
-              >
-                {o}
-              </button>
-            );
-          })}
-          {checked && (
-            <p className="why" role="status">
-              {md(q.why)}
+      {qs.map((q, i) => {
+        const qLevel = level(i);
+        const revealed = isRevealed(i);
+        const showQHint = !checked && qLevel !== "none" && !revealed;
+        const showQReveal = !checked && qLevel === "reveal" && !revealed;
+        return (
+          <div className="q" key={i} onClick={() => onFocusQ && onFocusQ(i)}>
+            <p className="q-q">
+              <span className="qn">Q{i + 1}</span>
+              {md(q.q)}
             </p>
-          )}
-        </div>
-      ))}
+            {q.opts.map((o, oi) => {
+              let cls = "opt";
+              if (!checked && sel[i] === oi) cls += " selopt";
+              if ((checked || revealed) && oi === q.a) cls += " rightopt";
+              if (checked && sel[i] === oi && oi !== q.a) cls += " wrongopt";
+              return (
+                <button
+                  key={oi}
+                  className={cls}
+                  disabled={(checked && allRight) || revealed}
+                  aria-pressed={sel[i] === oi}
+                  onClick={() => {
+                    setChecked(false);
+                    setSel({ ...sel, [i]: oi });
+                    if (onFocusQ) onFocusQ(i);
+                  }}
+                >
+                  {o}
+                </button>
+              );
+            })}
+            {showQHint && <HintBlock>{q.why}</HintBlock>}
+            {showQReveal && <RevealBtn onClick={() => revealQ(i)} />}
+            {revealed && !checked && (
+              <AnswerBlock>
+                **{q.opts[q.a]}** — {q.why}
+              </AnswerBlock>
+            )}
+            {checked && (
+              <p className="why" role="status">
+                {md(q.why)}
+              </p>
+            )}
+          </div>
+        );
+      })}
       <div className="exrow">
         {allRight || done ? (
           <button className="btn okbtn">✓ DECODED</button>
@@ -88,9 +123,14 @@ function LabQuestions({ qs, done, onAllRight, onMissQ, onFocusQ }: LabQuestionsP
           </button>
         )}
         {checked && !allRight && (
-          <span className="verdict badv" role="alert">
-            ✗ {right}/{qs.length} — wrong answers marked, adjust and re-check
-          </span>
+          <>
+            <button className="btn ghost" onClick={retry}>
+              ADJUST & RE-CHECK
+            </button>
+            <span className="verdict badv" role="alert">
+              ✗ {right}/{qs.length} — wrong answers marked, adjust and re-check
+            </span>
+          </>
         )}
         {allRight && (
           <span className="verdict good" role="status">
@@ -294,9 +334,14 @@ export function VlsmEx({ ex, done, onDone, miss }: VlsmExProps) {
   const [checked, setChecked] = useState(false);
   const [marks, setMarks] = useState<Record<string, boolean>>({});
   const [solved, setSolved] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const { recordWrong, reset: resetAttempts, showHint, showReveal } = useWrongAttempts();
   const allFilled = prob.rows.every(
     (_, i) => (vals[key(i, "net")] ?? "").trim() && (vals[key(i, "p")] ?? "").trim()
   );
+  const vlsmHint =
+    ex.why ??
+    "Sort requirements by size, then hand out blocks from the top of the parent — largest subnet first, each next block aligned to its size.";
 
   const check = () => {
     const m: Record<string, boolean> = {};
@@ -338,7 +383,28 @@ export function VlsmEx({ ex, done, onDone, miss }: VlsmExProps) {
     if (ok) {
       setSolved(solved + 1);
       if (!done) onDone();
+    } else {
+      recordWrong();
     }
+  };
+
+  const reveal = () => {
+    const filled: Record<string, string> = {};
+    prob.rows.forEach((r, i) => {
+      filled[key(i, "net")] = ipStr(r.net);
+      filled[key(i, "p")] = "/" + r.p;
+    });
+    setVals(filled);
+    const m: Record<string, boolean> = {};
+    prob.rows.forEach((_, i) => {
+      m[key(i, "net")] = true;
+      m[key(i, "p")] = true;
+    });
+    setMarks(m);
+    setRevealed(true);
+    setChecked(true);
+    setSolved(solved + 1);
+    if (!done) onDone();
   };
 
   const next = () => {
@@ -346,10 +412,12 @@ export function VlsmEx({ ex, done, onDone, miss }: VlsmExProps) {
     setVals({});
     setMarks({});
     setChecked(false);
+    setRevealed(false);
+    resetAttempts();
   };
 
   const allRight = checked && prob.rows.every((_, i) => marks[key(i, "net")] && marks[key(i, "p")]);
-  const cls = (k: string) => (checked ? (marks[k] ? "rt" : "wr") : "");
+  const cls = (k: string) => (checked ? (marks[k] || revealed ? "rt" : "wr") : "");
 
   return (
     <div className="exwrap">
@@ -383,6 +451,7 @@ export function VlsmEx({ ex, done, onDone, miss }: VlsmExProps) {
               placeholder="e.g. 10.64.12.0"
               value={vals[key(i, "net")] ?? ""}
               onChange={(e) => {
+                if (revealed) return;
                 setVals({ ...vals, [key(i, "net")]: e.target.value });
                 setChecked(false);
               }}
@@ -396,6 +465,7 @@ export function VlsmEx({ ex, done, onDone, miss }: VlsmExProps) {
               placeholder="/26"
               value={vals[key(i, "p")] ?? ""}
               onChange={(e) => {
+                if (revealed) return;
                 setVals({ ...vals, [key(i, "p")]: e.target.value });
                 setChecked(false);
               }}
@@ -415,12 +485,19 @@ export function VlsmEx({ ex, done, onDone, miss }: VlsmExProps) {
             ✓ clean allocation — {solved} solved this session
           </span>
         )}
-        {checked && !allRight && (
+        {checked && !allRight && !revealed && (
           <span className="verdict badv" role="alert">
             ✗ red fields are wrong — remember: biggest subnet first, each block aligned to its size
           </span>
         )}
+        {showReveal && checked && !allRight && !revealed && <RevealBtn onClick={reveal} />}
       </div>
+      {showHint && checked && !allRight && !revealed && <HintBlock>{vlsmHint}</HintBlock>}
+      {revealed && (
+        <AnswerBlock>
+          {prob.rows.map((r) => r.name + ": **" + ipStr(r.net) + "/" + r.p + "**").join("\n\n")}
+        </AnswerBlock>
+      )}
       {allRight && (
         <p className="why">
           Sort requirements by size, then hand out blocks from the top: the largest subnet takes the
