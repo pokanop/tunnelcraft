@@ -212,8 +212,8 @@ export function PortDrill({ ex, done, onDone, miss }: PortDrillProps) {
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                if (state === "ask") check();
-                else next();
+                if (state === "right") next();
+                else if (val.trim()) check();
               }
             }}
           />
@@ -246,12 +246,13 @@ export function PortDrill({ ex, done, onDone, miss }: PortDrillProps) {
         streak {streak} · best {best}
         {done ? " · ✓ drill logged" : " · first correct answer logs this lab"}
       </div>
-      <div style={{ marginTop: 10 }}>
-        {state === "ask" ? (
+      <div className="exrow" style={{ marginTop: 10 }}>
+        {(state === "ask" || state === "wrong") && !revealed && (
           <button className="btn" disabled={!val.trim()} onClick={check}>
             CHECK
           </button>
-        ) : (
+        )}
+        {state === "right" && (
           <button className="btn ghost" onClick={next}>
             NEXT SERVICE →
           </button>

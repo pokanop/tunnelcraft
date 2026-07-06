@@ -613,7 +613,7 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
   );
 
   const allAnswered = qs.every((_, i) => sel[i] !== undefined || isRevealed(i));
-  const score = qs.reduce((s, q, i) => s + (sel[i] === q.a || isRevealed(i) ? 1 : 0), 0);
+  const score = qs.reduce((s, q, i) => s + (sel[i] === q.a && !isRevealed(i) ? 1 : 0), 0);
   const pct = Math.round((score / qs.length) * 100);
   const passed = pct >= 70;
   const passedBest = best !== undefined && best >= 70;

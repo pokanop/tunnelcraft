@@ -30,19 +30,20 @@ function LabQuestions({ qs, done, onAllRight, onMissQ, onFocusQ }: LabQuestionsP
   const [checked, setChecked] = useState(false);
   const { recordWrong, level, reveal, isRevealed, clearRevealed } = useQuestionAttempts();
   const allAnswered = qs.every((_, i) => sel[i] !== undefined || isRevealed(i));
-  const right = qs.reduce((n, q, i) => n + (sel[i] === q.a || isRevealed(i) ? 1 : 0), 0);
+  const correctOnOwn = (i: number) => sel[i] === qs[i]!.a && !isRevealed(i);
+  const right = qs.reduce((n, _, i) => n + (correctOnOwn(i) ? 1 : 0), 0);
   const allRight = checked && right === qs.length;
 
   const submit = () => {
     setChecked(true);
     let ok = true;
     qs.forEach((q, i) => {
-      if (sel[i] !== q.a && !isRevealed(i)) {
+      if (!correctOnOwn(i)) {
         ok = false;
-        recordWrong(i);
-        if (onMissQ) onMissQ(i);
-      } else if (sel[i] !== q.a) {
-        ok = false;
+        if (sel[i] !== q.a && !isRevealed(i)) {
+          recordWrong(i);
+          if (onMissQ) onMissQ(i);
+        }
       }
     });
     if (ok) onAllRight();
