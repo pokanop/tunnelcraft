@@ -77,6 +77,8 @@ Open http://localhost:5173. (`bun run dev:server` / `bun run dev:client` still r
 
 Other root scripts: `bun test` (server API tests + client unit tests, one command across both workspaces), `bun run lint` / `lint:fix` (oxlint), `bun run format` / `format:check` (oxfmt), `bun run typecheck` (tsc, both workspaces), `bun run check` (all three), `bun run clean`.
 
+**Contributing:** run `bun run check` before opening a PR — CI fails on unformatted code even when lint/tests pass locally. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full pre-review checklist and optional `bun run setup:hooks` pre-push hook.
+
 ## Run it (production)
 
 ```sh
