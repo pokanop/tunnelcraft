@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { md } from "../lib/render";
 import { shuffle, ipStr } from "./exercises";
-import { AnswerBlock, HintBlock, RevealBtn, useQuestionAttempts, useWrongAttempts } from "./guidance";
+import {
+  AnswerBlock,
+  HintBlock,
+  RevealBtn,
+  useQuestionAttempts,
+  useWrongAttempts,
+} from "./guidance";
 import type { MissFn } from "../lib/review";
 import type {
   HexExercise,
@@ -67,46 +73,46 @@ function LabQuestions({ qs, done, onAllRight, onMissQ, onFocusQ }: LabQuestionsP
         const showQHint = !checked && qLevel !== "none" && !revealed;
         const showQReveal = !checked && qLevel === "reveal" && !revealed;
         return (
-        <div className="q" key={i} onClick={() => onFocusQ && onFocusQ(i)}>
-          <p className="q-q">
-            <span className="qn">Q{i + 1}</span>
-            {md(q.q)}
-          </p>
-          {q.opts.map((o, oi) => {
-            let cls = "opt";
-            if (!checked && sel[i] === oi) cls += " selopt";
-            if ((checked || revealed) && oi === q.a) cls += " rightopt";
-            if (checked && sel[i] === oi && oi !== q.a) cls += " wrongopt";
-            return (
-              <button
-                key={oi}
-                className={cls}
-                disabled={(checked && allRight) || revealed}
-                aria-pressed={sel[i] === oi}
-                onClick={() => {
-                  setChecked(false);
-                  setSel({ ...sel, [i]: oi });
-                  if (onFocusQ) onFocusQ(i);
-                }}
-              >
-                {o}
-              </button>
-            );
-          })}
-          {showQHint && <HintBlock>{q.why}</HintBlock>}
-          {showQReveal && <RevealBtn onClick={() => revealQ(i)} />}
-          {revealed && !checked && (
-            <AnswerBlock>
-              **{q.opts[q.a]}** — {q.why}
-            </AnswerBlock>
-          )}
-          {checked && (
-            <p className="why" role="status">
-              {md(q.why)}
+          <div className="q" key={i} onClick={() => onFocusQ && onFocusQ(i)}>
+            <p className="q-q">
+              <span className="qn">Q{i + 1}</span>
+              {md(q.q)}
             </p>
-          )}
-        </div>
-      );
+            {q.opts.map((o, oi) => {
+              let cls = "opt";
+              if (!checked && sel[i] === oi) cls += " selopt";
+              if ((checked || revealed) && oi === q.a) cls += " rightopt";
+              if (checked && sel[i] === oi && oi !== q.a) cls += " wrongopt";
+              return (
+                <button
+                  key={oi}
+                  className={cls}
+                  disabled={(checked && allRight) || revealed}
+                  aria-pressed={sel[i] === oi}
+                  onClick={() => {
+                    setChecked(false);
+                    setSel({ ...sel, [i]: oi });
+                    if (onFocusQ) onFocusQ(i);
+                  }}
+                >
+                  {o}
+                </button>
+              );
+            })}
+            {showQHint && <HintBlock>{q.why}</HintBlock>}
+            {showQReveal && <RevealBtn onClick={() => revealQ(i)} />}
+            {revealed && !checked && (
+              <AnswerBlock>
+                **{q.opts[q.a]}** — {q.why}
+              </AnswerBlock>
+            )}
+            {checked && (
+              <p className="why" role="status">
+                {md(q.why)}
+              </p>
+            )}
+          </div>
+        );
       })}
       <div className="exrow">
         {allRight || done ? (
@@ -489,9 +495,7 @@ export function VlsmEx({ ex, done, onDone, miss }: VlsmExProps) {
       {showHint && checked && !allRight && !revealed && <HintBlock>{vlsmHint}</HintBlock>}
       {revealed && (
         <AnswerBlock>
-          {prob.rows
-            .map((r) => r.name + ": **" + ipStr(r.net) + "/" + r.p + "**")
-            .join("\n\n")}
+          {prob.rows.map((r) => r.name + ": **" + ipStr(r.net) + "/" + r.p + "**").join("\n\n")}
         </AnswerBlock>
       )}
       {allRight && (

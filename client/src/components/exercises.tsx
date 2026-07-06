@@ -2,7 +2,13 @@ import { useState } from "react";
 import { md, hl } from "../lib/render";
 import type { MissFn } from "../lib/review";
 import type { CardQuestion } from "../lib/progress";
-import { AnswerBlock, HintBlock, RevealBtn, useQuestionAttempts, useWrongAttempts } from "./guidance";
+import {
+  AnswerBlock,
+  HintBlock,
+  RevealBtn,
+  useQuestionAttempts,
+  useWrongAttempts,
+} from "./guidance";
 import type {
   BlankExercise,
   CheckExercise,
@@ -159,9 +165,7 @@ export function OrderEx({ ex, done, onDone }: OrderExProps) {
         </HintBlock>
       )}
       {revealed && (
-        <AnswerBlock>
-          {ex.items.map((t, i) => (i + 1) + ". " + t).join("\n\n")}
-        </AnswerBlock>
+        <AnswerBlock>{ex.items.map((t, i) => i + 1 + ". " + t).join("\n\n")}</AnswerBlock>
       )}
       {state === "done" && !revealed && ex.why && <p className="why">{md(ex.why)}</p>}
     </div>
@@ -295,9 +299,7 @@ export function BlankEx({ ex, done, onDone }: BlankExProps) {
       )}
       {revealed && (
         <AnswerBlock>
-          {ex.blanks
-            .map((b, i) => "Blank " + (i + 1) + ": `" + b.opts[b.a] + "`")
-            .join("\n\n")}
+          {ex.blanks.map((b, i) => "Blank " + (i + 1) + ": `" + b.opts[b.a] + "`").join("\n\n")}
         </AnswerBlock>
       )}
       {state === "done" && !revealed && ex.why && <p className="why">{md(ex.why)}</p>}
@@ -538,7 +540,9 @@ export function CidrTrainer({ ex, done, onDone, miss }: CidrTrainerProps) {
           <RevealBtn onClick={reveal} />
         )}
       </div>
-      {showHint && state === "checked" && !allRight && !revealed && <HintBlock>{cidrHint}</HintBlock>}
+      {showHint && state === "checked" && !allRight && !revealed && (
+        <HintBlock>{cidrHint}</HintBlock>
+      )}
       {revealed && (
         <AnswerBlock>
           Network **{prob.net}** · broadcast **{prob.bc}** · **{prob.hosts}** usable hosts.
@@ -660,51 +664,51 @@ export function Quiz({ mod, best, onScore, onMiss }: QuizProps) {
         const showQHint = !submitted && qLevel !== "none" && !revealed;
         const showQReveal = !submitted && qLevel === "reveal" && !revealed;
         return (
-        <div className="q" key={i}>
-          <p className="q-q">
-            <span className="qn">Q{i + 1}</span>
-            {md(q.q)}
-          </p>
-          {(order[i] ?? q.opts.map((_, oi) => oi)).map((oi) => {
-            const o = q.opts[oi] ?? "";
-            let cls = "opt";
-            if (!submitted && sel[i] === oi) cls += " selopt";
-            if ((submitted || revealed) && oi === q.a) cls += " rightopt";
-            if (submitted && sel[i] === oi && oi !== q.a) cls += " wrongopt";
-            const outcome = !submitted
-              ? ""
-              : oi === q.a
-                ? " (correct answer)"
-                : sel[i] === oi
-                  ? " (your answer — incorrect)"
-                  : "";
-            return (
-              <button
-                key={oi}
-                className={cls}
-                disabled={submitted || revealed}
-                aria-pressed={sel[i] === oi}
-                aria-label={o + outcome}
-                onClick={() => setSel({ ...sel, [i]: oi })}
-              >
-                {o}
-              </button>
-            );
-          })}
-          {showQHint && <HintBlock>{q.why}</HintBlock>}
-          {showQReveal && <RevealBtn onClick={() => revealQ(i, q)} />}
-          {revealed && !submitted && (
-            <AnswerBlock>
-              **{q.opts[q.a]}** — {q.why}
-            </AnswerBlock>
-          )}
-          {submitted && (
-            <p className="why" role="status">
-              {md(q.why)}
+          <div className="q" key={i}>
+            <p className="q-q">
+              <span className="qn">Q{i + 1}</span>
+              {md(q.q)}
             </p>
-          )}
-        </div>
-      );
+            {(order[i] ?? q.opts.map((_, oi) => oi)).map((oi) => {
+              const o = q.opts[oi] ?? "";
+              let cls = "opt";
+              if (!submitted && sel[i] === oi) cls += " selopt";
+              if ((submitted || revealed) && oi === q.a) cls += " rightopt";
+              if (submitted && sel[i] === oi && oi !== q.a) cls += " wrongopt";
+              const outcome = !submitted
+                ? ""
+                : oi === q.a
+                  ? " (correct answer)"
+                  : sel[i] === oi
+                    ? " (your answer — incorrect)"
+                    : "";
+              return (
+                <button
+                  key={oi}
+                  className={cls}
+                  disabled={submitted || revealed}
+                  aria-pressed={sel[i] === oi}
+                  aria-label={o + outcome}
+                  onClick={() => setSel({ ...sel, [i]: oi })}
+                >
+                  {o}
+                </button>
+              );
+            })}
+            {showQHint && <HintBlock>{q.why}</HintBlock>}
+            {showQReveal && <RevealBtn onClick={() => revealQ(i, q)} />}
+            {revealed && !submitted && (
+              <AnswerBlock>
+                **{q.opts[q.a]}** — {q.why}
+              </AnswerBlock>
+            )}
+            {submitted && (
+              <p className="why" role="status">
+                {md(q.why)}
+              </p>
+            )}
+          </div>
+        );
       })}
       <div className="exrow">
         {!submitted && (

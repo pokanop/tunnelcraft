@@ -11,6 +11,9 @@ export function guidanceLevel(attempts: number): GuidanceLevel {
   return "none";
 }
 
-export function recordAttempt(counts: Record<number, number>, index: number): Record<number, number> {
+export function recordAttempt(
+  counts: Record<number, number>,
+  index: number
+): Record<number, number> {
   return { ...counts, [index]: (counts[index] ?? 0) + 1 };
 }

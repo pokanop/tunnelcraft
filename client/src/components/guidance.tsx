@@ -11,7 +11,14 @@ export function useWrongAttempts(initial = 0) {
   const recordWrong = useCallback(() => setAttempts((a) => a + 1), []);
   const reset = useCallback(() => setAttempts(0), []);
   const level = guidanceLevel(attempts);
-  return { attempts, recordWrong, reset, level, showHint: level !== "none", showReveal: level === "reveal" };
+  return {
+    attempts,
+    recordWrong,
+    reset,
+    level,
+    showHint: level !== "none",
+    showReveal: level === "reveal",
+  };
 }
 
 /** Track wrong checks per question index (labs, module quizzes). */
