@@ -254,6 +254,21 @@
   color: var(--acc2);
   white-space: nowrap;
 }
+.md-link {
+  color: var(--acc);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--acc) 45%, transparent);
+  text-underline-offset: 2px;
+}
+.md-link:hover {
+  color: var(--acc2);
+  text-decoration-color: var(--acc2);
+}
+.lesson .md-link:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
 .callout {
   background: var(--panel);
   border: 1px solid var(--line);

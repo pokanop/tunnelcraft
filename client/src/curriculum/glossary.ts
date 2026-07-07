@@ -218,6 +218,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n05",
   },
   {
+    t: "CLAT",
+    d: "Customer-side translator in 464XLAT — presents a fake IPv4 interface on the device and statelessly translates v4 packets to v6 before the carrier's NAT64 takes over.",
+    mod: "n19",
+  },
+  {
     t: "Clippy",
     d: "Rust's official lint suite — hundreds of checks for correctness hazards and unidiomatic code. Treat it as a style mentor and enforce it in CI.",
     mod: "r04",
@@ -245,6 +250,11 @@ export const GLOSSARY: GlossaryEntry[] = [
   {
     t: "CONNECT-IP",
     d: "RFC 9484 — the MASQUE method extending HTTP CONNECT to whole IP packets carried in QUIC DATAGRAM frames: a full VPN data plane inside what looks like HTTPS.",
+    mod: "m12",
+  },
+  {
+    t: "CONNECT-UDP",
+    d: "RFC 9298 — the MASQUE method extending HTTP CONNECT to proxy individual UDP flows over HTTP/3, the UDP sibling of CONNECT-IP.",
     mod: "m12",
   },
   {
@@ -381,6 +391,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "ECH",
     d: "Encrypted Client Hello — the TLS extension that encrypts the ClientHello (including SNI) to a key published in DNS, closing the handshake's last plaintext leak.",
     mod: "n11",
+  },
+  {
+    t: "ECMP",
+    d: "Equal-Cost Multipath — when several routes tie on cost, traffic is spread across them by hashing the 5-tuple so each flow sticks to one path and avoids reordering.",
+    mod: "n08",
   },
   {
     t: "Encapsulation",
@@ -668,6 +683,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "r04",
   },
   {
+    t: "MSS",
+    d: "Maximum Segment Size — the largest TCP payload a host will send, negotiated in the SYN handshake and often rewritten (MSS clamping) when a tunnel shrinks the path MTU.",
+    mod: "n07",
+  },
+  {
     t: "MSS clamping",
     d: "A gateway rewriting TCP's Maximum Segment Size during the handshake so segments fit a tunnel's reduced MTU — the pragmatic fix when Path MTU Discovery is being eaten.",
     mod: "n16",
@@ -711,6 +731,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "NAT64",
     d: "The translator that lets IPv6-only networks reach the IPv4 internet by mapping IPv4 addresses into an IPv6 prefix — paired with DNS64, which points clients at it.",
     mod: "n14w",
+  },
+  {
+    t: "NDP",
+    d: "Neighbor Discovery Protocol — IPv6's ARP replacement: Router Advertisements, address resolution, duplicate detection, and prefix discovery on the local link.",
+    mod: "n04",
   },
   {
     t: "Network Extension",
@@ -838,9 +863,19 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n03",
   },
   {
+    t: "PKI",
+    d: "Public Key Infrastructure — the hierarchy of certificate authorities, issued certificates, and trust stores that TLS uses to prove server (and sometimes client) identity.",
+    mod: "n11",
+  },
+  {
     t: "Policy routing",
     d: "Linux's `ip rule` layer: rules select among multiple routing tables by source, fwmark, or UID — the machinery beneath Android's per-app VPN and clean routing-loop avoidance.",
     mod: "p03",
+  },
+  {
+    t: "PLAT",
+    d: "Provider-side translator in 464XLAT — the carrier's stateful NAT64 that strips the IPv6 prefix and emits native IPv4 packets toward the internet.",
+    mod: "n19",
   },
   {
     t: "Poll",
@@ -856,6 +891,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Property-based testing",
     d: "Testing with generated inputs against invariants (“any framed message round-trips”) instead of hand-picked examples; the framework shrinks failures to a minimal counterexample.",
     mod: "r04",
+  },
+  {
+    t: "PREF64",
+    d: "Prefix64 — the Router Advertisement option (RFC 8781) that announces the NAT64 prefix directly, so clients can synthesize addresses without DNS64 heuristics.",
+    mod: "n19",
   },
   {
     t: "QUIC",
@@ -938,6 +978,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "p01",
   },
   {
+    t: "SDN",
+    d: "Software-Defined Networking — control plane separated from forwarding: networks (especially cloud VPCs) are declared via API and realized by a programmable fabric.",
+    mod: "n16",
+  },
+  {
     t: "Security group",
     d: "The cloud's stateful per-resource firewall: allow-list only, default deny, and rules can name another security group as the source — identity-based filtering instead of address-based.",
     mod: "n16",
@@ -978,9 +1023,19 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n11",
   },
   {
+    t: "SIIT",
+    d: "Stateless IP/ICMP Translation (RFC 7915) — a one-to-one algorithmic mapping between address families with no flow table; the building block of CLAT and stateless NAT64.",
+    mod: "n19",
+  },
+  {
     t: "SNR",
     d: "Signal-to-Noise Ratio — the gap between received signal and the noise floor, in dB. It, not raw signal strength, determines how aggressive a modulation the link can sustain.",
     mod: "n04w",
+  },
+  {
+    t: "SNAT",
+    d: "Source NAT — rewriting the source address (and usually port) of outbound packets so private hosts can reach the internet; what a cloud NAT gateway sells as a managed service.",
+    mod: "n16",
   },
   {
     t: "Socket",
