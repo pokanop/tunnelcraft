@@ -1,5 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { mock, describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+
+mock.module("@tanstack/react-router", () => ({
+  Link: ({
+    to,
+    params,
+    className,
+    children,
+  }: {
+    to: string;
+    params: { modId: string };
+    className?: string;
+    children: React.ReactNode;
+  }) => (
+    <a className={className} href={to.replace("$modId", params.modId)}>
+      {children}
+    </a>
+  ),
+}));
+
 import { md } from "./render";
 import { MOD_CODE_TO_ID, rfcUrl } from "./curriculum-links";
 
@@ -13,7 +32,7 @@ describe("md()", () => {
     expect(markup("plain **bold** and `code`")).toContain('<code class="ic">code</code>');
   });
 
-  it("auto-links module cross-refs", () => {
+  it("auto-links module cross-refs with client-side router links", () => {
     const html = markup("See N01 for CIDR and T03 for WireGuard.");
     expect(html).toContain(`href="/m/${MOD_CODE_TO_ID["N01"]}"`);
     expect(html).toContain(`href="/m/${MOD_CODE_TO_ID["T03"]}"`);
@@ -21,13 +40,13 @@ describe("md()", () => {
     expect(html).toContain(">T03<");
   });
 
-  it("auto-links possessive module refs", () => {
+  it("auto-links possessive module refs without including 's in the link", () => {
     const html = markup("N11's SNAT behavior");
     expect(html).toContain(`href="/m/${MOD_CODE_TO_ID["N11"]}"`);
-    expect(html).toMatch(/N11(&#x27;|'s)/);
+    expect(html).toContain(">N11</a>&#x27;s");
   });
 
-  it("auto-links RFC references", () => {
+  it("auto-links RFC references as external anchors", () => {
     const html = markup("Private ranges are in RFC 1918.");
     expect(html).toContain(`href="${rfcUrl(1918)}"`);
     expect(html).toContain('target="_blank"');
@@ -46,7 +65,7 @@ describe("md()", () => {
     expect(html).toContain('<code class="ic">N01</code>');
   });
 
-  it("renders explicit markdown links", () => {
+  it("renders explicit markdown links as external anchors", () => {
     const html = markup(
       "[Tailscale NAT essay](https://tailscale.com/blog/how-nat-traversal-works)"
     );

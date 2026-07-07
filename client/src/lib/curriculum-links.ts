@@ -16,8 +16,8 @@ export function modPath(id: string, tab?: string): string {
   return tab ? `/m/${id}/${tab}` : `/m/${id}`;
 }
 
-/** Match module cross-refs like N01, T03, R07, P01, S02 (optional trailing 's). */
-export const MOD_CODE_RE = /\b([NTRPS])(\d{2})(?:'s)?\b/g;
+/** Match module cross-refs like N01, T03, R07, P01, S02 (possessive 's captured separately). */
+export const MOD_CODE_RE = /\b([NTRPS])(\d{2})('s)?\b/g;
 
 /** Match RFC numbers, including slash-separated pairs like 5389/8489. */
 export const RFC_RE = /\bRFC\s+(\d{2,5})(?:\/(\d{2,5}))?\b/g;

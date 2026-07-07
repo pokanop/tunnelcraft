@@ -1028,14 +1028,14 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n19",
   },
   {
-    t: "SNR",
-    d: "Signal-to-Noise Ratio — the gap between received signal and the noise floor, in dB. It, not raw signal strength, determines how aggressive a modulation the link can sustain.",
-    mod: "n04w",
-  },
-  {
     t: "SNAT",
     d: "Source NAT — rewriting the source address (and usually port) of outbound packets so private hosts can reach the internet; what a cloud NAT gateway sells as a managed service.",
     mod: "n16",
+  },
+  {
+    t: "SNR",
+    d: "Signal-to-Noise Ratio — the gap between received signal and the noise floor, in dB. It, not raw signal strength, determines how aggressive a modulation the link can sustain.",
+    mod: "n04w",
   },
   {
     t: "Socket",

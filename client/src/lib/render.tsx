@@ -1,27 +1,24 @@
 import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import type { Block, CodeLang, LayerTag } from "../curriculum/types";
 import { DiagramView } from "./diagram";
-import { MOD_CODE_RE, MOD_CODE_TO_ID, RFC_RE, modPath, rfcUrl } from "./curriculum-links";
+import { MOD_CODE_RE, MOD_CODE_TO_ID, RFC_RE, rfcUrl } from "./curriculum-links";
 
 /* ---------- inline markdown (links, backticks, bold) + auto-link RFCs & module codes ---------- */
 
-function MdLink({
-  href,
-  external,
-  children,
-}: {
-  href: string;
-  external?: boolean;
-  children: ReactNode;
-}) {
+function MdExternalLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a
-      className="md-link"
-      href={href}
-      {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
-    >
+    <a className="md-link" href={href} target="_blank" rel="noreferrer">
       {children}
     </a>
+  );
+}
+
+function ModLink({ modId, children }: { modId: string; children: ReactNode }) {
+  return (
+    <Link to="/m/$modId" params={{ modId }} className="md-link">
+      {children}
+    </Link>
   );
 }
 
@@ -38,16 +35,16 @@ function linkifyPlain(text: string, keyStart: { n: number }): ReactNode[] {
     const first = Number(m[1]);
     const second = m[2] ? Number(m[2]) : undefined;
     const nodes: ReactNode[] = [
-      <MdLink key={keyStart.n++} href={rfcUrl(first)} external>
+      <MdExternalLink key={keyStart.n++} href={rfcUrl(first)}>
         RFC {first}
-      </MdLink>,
+      </MdExternalLink>,
     ];
     if (second !== undefined) {
       nodes.push(
         <span key={keyStart.n++}>/</span>,
-        <MdLink key={keyStart.n++} href={rfcUrl(second)} external>
+        <MdExternalLink key={keyStart.n++} href={rfcUrl(second)}>
           {second}
-        </MdLink>
+        </MdExternalLink>
       );
     }
     spans.push({
@@ -60,6 +57,7 @@ function linkifyPlain(text: string, keyStart: { n: number }): ReactNode[] {
   MOD_CODE_RE.lastIndex = 0;
   while ((m = MOD_CODE_RE.exec(text))) {
     const code = m[1]! + m[2]!;
+    const possessive = m[3] ?? "";
     const modId = MOD_CODE_TO_ID[code];
     if (!modId) continue;
     const overlap = spans.some((s) => m!.index < s.end && m!.index + m![0].length > s.start);
@@ -68,9 +66,10 @@ function linkifyPlain(text: string, keyStart: { n: number }): ReactNode[] {
       start: m.index,
       end: m.index + m[0].length,
       node: (
-        <MdLink key={keyStart.n++} href={modPath(modId)}>
-          {m[0]}
-        </MdLink>
+        <span key={keyStart.n++}>
+          <ModLink modId={modId}>{code}</ModLink>
+          {possessive}
+        </span>
       ),
     });
   }
@@ -115,11 +114,10 @@ export function md(text: string): ReactNode[] {
       const lm = MD_LINK_RE.exec(t);
       if (lm) {
         const href = lm[2]!;
-        const external = /^https?:\/\//.test(href);
         out.push(
-          <MdLink key={keys.n++} href={href} external={external}>
+          <MdExternalLink key={keys.n++} href={href}>
             {lm[1]}
-          </MdLink>
+          </MdExternalLink>
         );
       } else {
         out.push(t);
