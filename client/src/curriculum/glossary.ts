@@ -88,6 +88,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n02",
   },
   {
+    t: "ARQ (Automatic Repeat reQuest)",
+    d: "The reliability family that recovers loss by acknowledging and retransmitting segments — TCP, QUIC, and KCP are all ARQ, differing mainly in how fast they detect loss and whether they back off. Put reliability at the layer that wants it; ARQ is how that layer gets it.",
+    mod: "t06",
+  },
+  {
     t: "AS_PATH",
     d: "The BGP attribute listing every autonomous system a route announcement has traversed — used to detect loops and, shorter-is-better, as a selection tiebreaker.",
     mod: "n08",
@@ -271,6 +276,16 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Connection draining",
     d: "A load balancer letting a deregistering backend finish its in-flight requests while refusing to send it new ones — the mechanism behind zero-downtime deploys. Also called deregistration delay.",
     mod: "n16",
+  },
+  {
+    t: "Connection migration",
+    d: "A QUIC connection is identified by its **connection ID**, not the 4-tuple, so it survives a change of IP or port — a phone roaming Wi-Fi→LTE keeps its streams with no re-handshake. In `quinn` the client triggers it by rebinding the endpoint's socket; the server validates the new path and continues.",
+    mod: "t06",
+  },
+  {
+    t: "Connector",
+    d: "The dial side of a pluggable transport: an object that establishes a carriage to a peer and yields a framed bidirectional pipe, so the overlay is written once against the interface. EasyTier expresses each as a URL scheme — `tcp://`, `ws://`, `wss://`, `quic`.",
+    mod: "t06",
   },
   {
     t: "Control plane",
@@ -468,9 +483,19 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "m11",
   },
   {
+    t: "faketcp",
+    d: "Framing UDP payloads to look like a TCP flow — a fake 3-way handshake and advancing seq/ack numbers — so middleboxes that only pass TCP let them through, while keeping UDP's datagram semantics underneath (no congestion control, no retransmit). Needs raw sockets or WinDivert, defeats only naive DPI, and is a privileged, high-maintenance last resort.",
+    mod: "t06",
+  },
+  {
     t: "Fast retransmit",
     d: "TCP resending a segment after **three duplicate ACKs** instead of waiting for the retransmission timeout — the receiver's repeated 'I'm still missing X' is treated as proof of loss, recovering in a round-trip instead of a timeout.",
     mod: "n07",
+  },
+  {
+    t: "FEC (forward error correction)",
+    d: "Sending redundant data so some loss is repaired at the receiver without a round-trip retransmit — often paired with KCP on lossy links, spending bandwidth to buy latency.",
+    mod: "t06",
   },
   {
     t: "FFI",
@@ -516,6 +541,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "fwmark",
     d: "A Linux firewall mark stamped on packets (by nftables/iptables or a socket option) that policy-routing rules can match to choose a routing table — how WireGuard's own encrypted packets escape the tunnel's default route on Linux.",
     mod: "p03",
+  },
+  {
+    t: "Gateway-assisted traversal",
+    d: "Getting a reachable endpoint by asking the NAT to forward a port (UPnP IGD, NAT-PMP/PCP) instead of tricking it with hole punching (T04). Complements traversal as another ICE candidate — stable and inbound-capable — but only where you control the gateway; carrier-grade NAT has none to ask.",
+    mod: "t06",
   },
   {
     t: "Gossip protocol",
@@ -611,6 +641,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Jitter",
     d: "Variation in latency — how much packet arrival times wobble around the average. Real-time traffic (calls, games) suffers more from jitter than from steady latency; a jitter buffer trades added delay for smoothness.",
     mod: "n02",
+  },
+  {
+    t: "KCP",
+    d: "A fast ARQ protocol layered over UDP that trades ~10–20% extra bandwidth for ~30–40% lower latency on lossy links — fast retransmit on skipped ACKs, immediate ACKs, gentler RTO backoff (×1.5), and optional flow-control-off. Rude by design, so reserve it for links you own; from skywind3000/kcp.",
+    mod: "t06",
   },
   {
     t: "Keepalive",
@@ -751,6 +786,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "NAT gateway",
     d: "The managed cloud NAT that lets private-subnet instances initiate outbound internet connections while staying unreachable from outside.",
     mod: "n16",
+  },
+  {
+    t: "NAT-PMP / PCP",
+    d: "Apple's NAT Port Mapping Protocol and its IETF successor, Port Control Protocol (RFC 6887): compact binary UDP requests to the gateway (port 5351) for a leased port mapping — the modern alternative to UPnP IGD. Rust: `natpmp`, or `crab_nat` for NAT-PMP and PCP with fallback.",
+    mod: "t06",
   },
   {
     t: "NAT-T",
@@ -926,6 +966,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Poll",
     d: "The contract at async Rust's heart: the executor calls `poll`; the future either completes with `Ready` or returns `Pending` after arranging — via the Waker — to be woken when progress is possible.",
     mod: "r06",
+  },
+  {
+    t: "Pluggable transport",
+    d: "A tunnel design that decouples the overlay (peers, crypto, routing) from the carriage that moves its bytes, behind a narrow connector interface — so UDP, QUIC, TCP, WebSocket, or KCP can be swapped per network without touching the overlay. Reachability, reliability, multiplexing, and camouflage become properties of the carriage.",
+    mod: "t06",
   },
   {
     t: "Port forwarding",
@@ -1328,6 +1373,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "r07",
   },
   {
+    t: "UPnP IGD",
+    d: "Internet Gateway Device — the ubiquitous consumer-router protocol (SOAP over HTTP, discovered by SSDP) that lets a LAN host ask the gateway to open an external port. Rust: `igd-next`. Opportunistic: frequently disabled (a known malware vector) and absent on carrier-grade NAT.",
+    mod: "t06",
+  },
+  {
     t: "Userspace network stack",
     d: "A TCP/IP implementation inside your own process: when the OS hands you raw packets or flows, your tunnel must do what the kernel normally does — parse, track connections, and reassemble.",
     mod: "m07",
@@ -1361,6 +1411,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Waker",
     d: "The callback handle a future stashes with its event source before returning `Pending`; when the event fires, `wake()` tells the executor to poll that task again. A lost wake is a task that sleeps forever.",
     mod: "r06",
+  },
+  {
+    t: "WebSocket tunnel (WSS)",
+    d: "Carrying tunnel frames inside WebSocket over TLS on port 443, so the traffic is indistinguishable from HTTPS and passes HTTP proxies and UDP-hostile DPI — at the cost of running over a reliable stream (the meltdown risk stands). Rust: `tokio-tungstenite` over `tokio-rustls`.",
+    mod: "t06",
   },
   {
     t: "WFP",
