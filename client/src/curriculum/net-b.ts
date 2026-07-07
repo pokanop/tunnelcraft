@@ -473,7 +473,7 @@ export const NET_B: Module[] = [
         est: "~12 min",
         blocks: [
           {
-            p: "Between organizations, shortest-path is the wrong question — *whose network may my traffic cross?* is the real one. The internet is ~80,000+ **autonomous systems** (each with an AS number: ISPs, clouds, big enterprises), and **BGP** is how they exchange reachability. It's a **path-vector** protocol: each route carries the full **AS_PATH** it traveled ('this prefix, via AS3356 then AS13335'), which kills loops — reject anything already containing your own AS — and provides the raw material for policy.",
+            p: "Between organizations, shortest-path is the wrong question — *whose network may my traffic cross?* is the real one. The internet is ~80,000+ **autonomous systems** (each with an AS number: ISPs, clouds, big enterprises), and **BGP** (Border Gateway Protocol) is how they exchange reachability. It's a **path-vector** protocol: each route carries the full **AS_PATH** it traveled ('this prefix, via AS3356 then AS13335'), which kills loops — reject anything already containing your own AS — and provides the raw material for policy.",
           },
           {
             p: "And policy beats distance, by design. Routes are filtered and ranked by **business relationships**: prefer routes from customers (they pay you), then peers (free swap), then providers (you pay). LOCAL_PREF encodes that ranking and is consulted *before* AS_PATH length. The result: internet traffic follows money and contracts, and 'suboptimal' paths are usually someone's revenue decision, not a bug. eBGP speaks between ASes; iBGP redistributes those decisions inside one.",

@@ -1,28 +1,132 @@
 import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import type { Block, CodeLang, LayerTag } from "../curriculum/types";
 import { DiagramView } from "./diagram";
+import { MOD_CODE_RE, MOD_CODE_TO_ID, RFC_RE, rfcUrl } from "./curriculum-links";
 
-/* ---------- inline markdown (backticks + bold) ---------- */
+/* ---------- inline markdown (links, backticks, bold) + auto-link RFCs & module codes ---------- */
+
+function MdExternalLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a className="md-link" href={href} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  );
+}
+
+function ModLink({ modId, children }: { modId: string; children: ReactNode }) {
+  return (
+    <Link to="/m/$modId" params={{ modId }} className="md-link">
+      {children}
+    </Link>
+  );
+}
+
+/** Link RFC numbers and module cross-refs in plain text (not inside code/bold/markdown links). */
+function linkifyPlain(text: string, keyStart: { n: number }): ReactNode[] {
+  if (!text) return [];
+
+  type Span = { start: number; end: number; node: ReactNode };
+  const spans: Span[] = [];
+
+  RFC_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = RFC_RE.exec(text))) {
+    const first = Number(m[1]);
+    const second = m[2] ? Number(m[2]) : undefined;
+    const nodes: ReactNode[] = [
+      <MdExternalLink key={keyStart.n++} href={rfcUrl(first)}>
+        RFC {first}
+      </MdExternalLink>,
+    ];
+    if (second !== undefined) {
+      nodes.push(
+        <span key={keyStart.n++}>/</span>,
+        <MdExternalLink key={keyStart.n++} href={rfcUrl(second)}>
+          {second}
+        </MdExternalLink>
+      );
+    }
+    spans.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      node: <span key={keyStart.n++}>{nodes}</span>,
+    });
+  }
+
+  MOD_CODE_RE.lastIndex = 0;
+  while ((m = MOD_CODE_RE.exec(text))) {
+    const code = m[1]! + m[2]!;
+    const possessive = m[3] ?? "";
+    const modId = MOD_CODE_TO_ID[code];
+    if (!modId) continue;
+    const overlap = spans.some((s) => m!.index < s.end && m!.index + m![0].length > s.start);
+    if (overlap) continue;
+    spans.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      node: (
+        <span key={keyStart.n++}>
+          <ModLink modId={modId}>{code}</ModLink>
+          {possessive}
+        </span>
+      ),
+    });
+  }
+
+  if (spans.length === 0) return [text];
+
+  spans.sort((a, b) => a.start - b.start);
+  const out: ReactNode[] = [];
+  let cursor = 0;
+  for (const s of spans) {
+    if (s.start < cursor) continue;
+    if (s.start > cursor) out.push(text.slice(cursor, s.start));
+    out.push(s.node);
+    cursor = s.end;
+  }
+  if (cursor < text.length) out.push(text.slice(cursor));
+  return out;
+}
+
+const INLINE_TOKEN_RE = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
+const MD_LINK_RE = /^\[([^\]]+)\]\(([^)]+)\)$/;
+
 export function md(text: string): ReactNode[] {
   const out: ReactNode[] = [];
-  const re = /(`[^`]+`|\*\*[^*]+\*\*)/g;
+  const keys = { n: 0 };
   let last = 0;
   let m: RegExpExecArray | null;
-  let k = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push(text.slice(last, m.index));
+  INLINE_TOKEN_RE.lastIndex = 0;
+
+  while ((m = INLINE_TOKEN_RE.exec(text))) {
+    if (m.index > last) out.push(...linkifyPlain(text.slice(last, m.index), keys));
     const t = m[0];
-    if (t[0] === "`")
+    if (t[0] === "`") {
       out.push(
-        <code key={k++} className="ic">
+        <code key={keys.n++} className="ic">
           {t.slice(1, -1)}
         </code>
       );
-    else out.push(<strong key={k++}>{t.slice(2, -2)}</strong>);
+    } else if (t.startsWith("**")) {
+      out.push(<strong key={keys.n++}>{t.slice(2, -2)}</strong>);
+    } else {
+      const lm = MD_LINK_RE.exec(t);
+      if (lm) {
+        const href = lm[2]!;
+        out.push(
+          <MdExternalLink key={keys.n++} href={href}>
+            {lm[1]}
+          </MdExternalLink>
+        );
+      } else {
+        out.push(t);
+      }
+    }
     last = m.index + t.length;
   }
-  if (last < text.length) out.push(text.slice(last));
-  return out;
+  if (last < text.length) out.push(...linkifyPlain(text.slice(last), keys));
+  return out.length ? out : [text];
 }
 
 /* ---------- tiny syntax highlighter ---------- */

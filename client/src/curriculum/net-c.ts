@@ -17,7 +17,7 @@ export const NET_C: Module[] = [
         est: "~10 min",
         blocks: [
           {
-            p: "DNS is a global key-value store that works because **nobody runs it**: authority is *delegated* down a tree. The **root** (13 named servers, hundreds of anycast instances — N10 paying off) knows who runs each TLD; the **.com servers** know which nameservers are authoritative for `example.com`; those **authoritative** servers hold the actual records. Each level only knows the next level down.",
+            p: "**DNS** (Domain Name System) is a global key-value store that works because **nobody runs it**: authority is *delegated* down a tree. The **root** (13 named servers, hundreds of anycast instances — N10 paying off) knows who runs each **TLD** (Top-Level Domain); the **.com servers** know which nameservers are authoritative for `example.com`; those **authoritative** servers hold the actual records. Each level only knows the next level down.",
           },
           {
             p: "Delegation is implemented with **NS records**: the parent zone stores 'example.com is served by ns1.hoster.net' — a referral, not an answer. Registrar vs DNS host, a distinction that confuses everyone: the **registrar** is where you rent the name and set which NS records the TLD publishes; the **DNS host** runs those nameservers and answers queries. Same company sometimes, but two different jobs — and 'I changed my DNS but nothing happened' is usually someone editing records at the wrong one.",
