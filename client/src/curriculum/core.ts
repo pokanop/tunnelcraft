@@ -2650,7 +2650,7 @@ assert_eq!(resp.§2§(), MessageClass::SuccessResponse);`,
             p: 'Rungs R1–R10 land you at a production-shaped **hub-and-spoke** client: one tunnel engine, coordinated peers, kill switch, second platform. Rungs **R11–R14** reuse every prior artifact and one module\'s new idea each — the same "one weekend per rung" contract — but the finished client is **mesh-shaped**: decentralized peer tables, overlay routing with relay fallback, site-to-site route propagation, and UPnP as a traversal rung before you pay the relay tax.',
           },
           {
-            p: "**R11** wires the peer-exchange protocol you designed in **T05's sequence lab**: each node advertises its stable key, endpoints, and owned CIDRs in a versioned, sequenced protobuf record, ships it inside the **R2 length-prefixed frame**, and merges incoming updates by keeping the highest sequence per origin. Three nodes in `ip netns` should converge on the same table after one gossip round.",
+            p: "R11 wires the peer-exchange protocol you designed in T05's sequence lab: each node advertises its stable key, endpoints, and owned CIDRs in a versioned, sequenced protobuf record, ships it inside the **R2 length-prefixed frame**, and merges incoming updates by keeping the highest sequence per origin. Three nodes in `ip netns` should converge on the same table after one gossip round.",
           },
           {
             p: "**R12** is relay-through-peer made concrete: model only *working* links as edges in the peer graph (T05L4–L5), run `astar` for lowest latency, and forward ciphertext through the hop list when the direct edge is absent — the blocked-pair test is simply deleting the A↔D edge and asserting traffic flows A→C→D. End-to-end encryption (T02/T03) means the relay peer is untrusted infrastructure, same as DERP.",
@@ -2660,6 +2660,10 @@ assert_eq!(resp.§2§(), MessageClass::SuccessResponse);`,
           },
           {
             p: "**R14** adds **`igd-next`** (UPnP IGD) beside hole punching: discover the local gateway, call `AddPortMapping` for your tunnel UDP port, verify the external mapping, and hold it for a lease interval. When punching fails *and* UPnP is unavailable, R12's relay path is the fallback — the same traversal ladder as T04, with one more rung.",
+          },
+          {
+            note: "The reference `proto.rs` decoder rejects unknown fields on purpose — simpler to teach, but production protobuf parsers should skip unfamiliar tags for forward compatibility. Do not copy the strictness blindly.",
+            label: "teaching vs production",
           },
           {
             note: "Reference implementations with tests live in `labs/capstone/` in the Tunnelcraft repo — a checked answer key, not a substitute for building the rungs in your own client crate.",

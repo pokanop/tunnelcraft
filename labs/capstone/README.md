@@ -18,12 +18,6 @@ cargo test
 
 CI runs the same command on every PR. A full system toolchain (`build-essential` on Linux) is required to link test binaries.
 
-## R14 and real hardware
+## R14 and live routers
 
-The `upnp` module ships a **mock gateway** so tests run in CI without a router. To exercise `igd-next` against a live IGD on your LAN:
-
-```sh
-cargo test --features live-upnp -- --ignored
-```
-
-(Requires the `igd-next` optional dependency and a UPnP-enabled router.)
+The `upnp` module ships a **mock gateway** so tests run in CI without a router. Wiring real **`igd-next`** calls against a UPnP-enabled IGD is the learner's R14 exercise — use the S03 igd-next CODE LAB sketch and `production_igd_next_sketch()` in `upnp.rs` as the starting point. This reference crate intentionally ships only the mock so CI stays hermetic.
