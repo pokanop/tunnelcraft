@@ -1,0 +1,12 @@
+[package]
+name = "tunnelcraft-capstone"
+version = "0.1.0"
+edition = "2021"
+description = "S03 capstone ladder reference labs — rungs R11–R14 (mesh shape)"
+publish = false
+
+[dependencies]
+petgraph = "0.6"
+
+[dev-dependencies]
+# No proc-macro crates — keeps `cargo check` usable in minimal environments.

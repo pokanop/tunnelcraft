@@ -37,3 +37,13 @@ jobs:
 
       - name: Build image
         run: docker build -t tunnelcraft:ci .
+
+  capstone-labs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Capstone lab tests (R11–R14)
+        run: cargo test --manifest-path labs/capstone/Cargo.toml
