@@ -138,19 +138,22 @@ default via 192.168.1.1 dev wlan0        # the underlay default
             code: {
               lang: "rust",
               title: "Longest-prefix lookup with prefix-trie (teaching sketch)",
-              body: `use prefix_trie::PrefixMap;
+              body: `use cidr::Ipv4Cidr;
+use prefix_trie::PrefixMap;
 use std::net::Ipv4Addr;
 
 // Each route maps a CIDR to an egress label.
-let mut routes: PrefixMap<Ipv4Addr, &str> = PrefixMap::new();
+let mut routes: PrefixMap<Ipv4Cidr, &str> = PrefixMap::new();
 routes.insert("10.8.0.0/24".parse().unwrap(), "wg0");
 routes.insert("10.0.0.0/8".parse().unwrap(), "eth0");
 routes.insert("0.0.0.0/0".parse().unwrap(), "wlan0");
 
 let dst: Ipv4Addr = "10.8.0.7".parse().unwrap();
 // /24 beats /8 beats /0 — same rule as \`ip route\`, now in one call.
-let (_, iface) = routes.get_lpm(&dst).expect("default always matches");
-assert_eq!(iface, "wg0");`,
+let (_, iface) = routes
+    .get_lpm(&Ipv4Cidr::new(dst, 32).unwrap())
+    .expect("default always matches");
+assert_eq!(*iface, "wg0");`,
             },
           },
           {
@@ -224,13 +227,13 @@ assert_eq!(iface, "wg0");`,
         kind: "CODE LAB",
         prompt:
           "Fill the blanks so this prefix trie returns the most specific route for each destination — the same tiebreak `ip route` uses.",
-        code: `let mut routes: PrefixMap<Ipv4Addr, &str> = PrefixMap::new();
+        code: `let mut routes: PrefixMap<Ipv4Cidr, &str> = PrefixMap::new();
 routes.insert("10.8.0.0/24".parse().unwrap(), "wg0");
 routes.insert("0.0.0.0/0".parse().unwrap(), "wlan0");
 
 let dst: Ipv4Addr = "10.8.0.7".parse().unwrap();
-let (_, iface) = routes.§0§(&dst).§1§;
-assert_eq!(iface, "§2§");`,
+let (_, iface) = routes.§0§(&Ipv4Cidr::new(dst, 32).unwrap()).§1§;
+assert_eq!(*iface, "§2§");`,
         blanks: [
           { opts: ["get_lpm", "get", "insert"], a: 0 },
           { opts: ["unwrap", "clone", "iter"], a: 0 },
@@ -1288,7 +1291,7 @@ telemetry_tx.send(pkt).await?;      // same bytes, zero copies`,
               lang: "rust",
               title: "Typed header view with zerocopy (teaching sketch)",
               body: `use bytes::Bytes;
-use zerocopy::{AsBytes, FromBytes, FromZeroes, byteorder::U16};
+use zerocopy::{AsBytes, FromBytes, FromZeroes, byteorder::{NetworkEndian, U16}};
 
 #[repr(C, packed)]
 #[derive(AsBytes, FromBytes, FromZeroes, Clone, Copy, Debug)]
@@ -1296,7 +1299,7 @@ struct UdpTunnelHeader {
     conn_id: u32,
     msg_type: u8,
     padding: u8,
-    len: U16,
+    len: U16<NetworkEndian>,
 }
 
 fn header_of(pkt: &Bytes) -> Option<&UdpTunnelHeader> {
@@ -2001,11 +2004,12 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
             code: {
               lang: "rust",
               title: "STUN BINDING with stun_codec (teaching sketch)",
-              body: `use stun_codec::rfc5389::{methods::BINDING, attributes::XorMappedAddress};
+              body: `use rand::random;
+use stun_codec::rfc5389::{methods::BINDING, attributes::XorMappedAddress, Attribute};
 use stun_codec::{Message, MessageClass, MessageDecoder, MessageEncoder};
 
 // --- send (from the same UdpSocket your tunnel will use) ---
-let tid = rand::random::<[u8; 12]>();
+let tid = random::<[u8; 12]>();
 let req = Message::<Attribute>::new(MessageClass::Request, BINDING, tid);
 let bytes = MessageEncoder::new().encode_into_bytes(req)?;
 
