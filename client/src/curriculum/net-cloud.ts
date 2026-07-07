@@ -18,13 +18,13 @@ export const NET_CLOUD: Module[] = [
         est: "~18 min",
         blocks: [
           {
-            p: "A **VPC** (Virtual Private Cloud — Azure says *VNet*) is a private L3 network conjured by an API call: you name a CIDR block, and the provider's SDN fabric makes it real. There are no switches to configure and no cables to trace — but every concept from this track is still load-bearing. You choose an RFC 1918 range (N05), carve it with VLSM (N07), and packets are steered by longest-prefix-match route tables (N01). The cloud didn't replace networking fundamentals; it turned them into *design decisions you commit to on day one*.",
+            p: "A **VPC** (Virtual Private Cloud — Azure says *VNet*) is a private L3 network conjured by an API call: you name a CIDR block, and the provider's **SDN** (Software-Defined Networking) fabric makes it real. There are no switches to configure and no cables to trace — but every concept from this track is still load-bearing. You choose an RFC 1918 range (N05), carve it with VLSM (N07), and packets are steered by longest-prefix-match route tables (N01). The cloud didn't replace networking fundamentals; it turned them into *design decisions you commit to on day one*.",
           },
           {
             p: "**CIDR planning is the irreversible decision.** A VPC's primary range is hard to change after workloads land in it, and the classic failure is choosing 10.0.0.0/16 for every VPC and every office — then discovering that VPN and peering connections between overlapping ranges are unrouteable (N01: two 'longest prefixes' that collide can't share a table). Professionals keep a global address plan: one spreadsheet-worth of non-overlapping blocks covering offices, VPCs, and the VPN ranges between them, with room to grow.",
           },
           {
-            p: "Inside the VPC you cut **subnets** — in AWS each lives in one availability zone; GCP subnets span a region. What makes a subnet 'public' is nothing intrinsic: it's *its route table*. A subnet whose table has `0.0.0.0/0 → internet gateway` is public; one whose default route points at a **NAT gateway** is private — its instances can reach out (N11's SNAT, sold as a managed service, billed by the gigabyte), but nothing unsolicited can reach in. Every subnet also gets an implicit router: the VPC's own CIDR is always routable locally, no configuration needed.",
+            p: "Inside the VPC you cut **subnets** — in AWS each lives in one availability zone; GCP subnets span a region. What makes a subnet 'public' is nothing intrinsic: it's *its route table*. A subnet whose table has `0.0.0.0/0 → internet gateway` is public; one whose default route points at a **NAT gateway** is private — its instances can reach out (N11's **SNAT** — Source NAT, sold as a managed service, billed by the gigabyte), but nothing unsolicited can reach in. Every subnet also gets an implicit router: the VPC's own CIDR is always routable locally, no configuration needed.",
           },
           {
             diagram: {

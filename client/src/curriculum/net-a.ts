@@ -139,7 +139,7 @@ export const NET_A: Module[] = [
         est: "~10 min",
         blocks: [
           {
-            p: "You know the destination *IP*; the frame needs a destination *MAC*. **ARP** answers the question. Host broadcasts: 'who has 192.168.1.7?' The owner replies unicast: '192.168.1.7 is at aa:bb:cc:dd:ee:ff.' The answer is cached (check yours: `ip neigh` / `arp -a`) for a few minutes.",
+            p: "You know the destination *IP*; the frame needs a destination *MAC*. **ARP** (Address Resolution Protocol) answers the question. Host broadcasts: 'who has 192.168.1.7?' The owner replies unicast: '192.168.1.7 is at aa:bb:cc:dd:ee:ff.' The answer is cached (check yours: `ip neigh` / `arp -a`) for a few minutes.",
           },
           {
             diagram: {

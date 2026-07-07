@@ -16,14 +16,14 @@ export const CORE_MODULES: Module[] = [
         est: "8 min",
         blocks: [
           {
-            p: "Networking is a stack of contracts. Each layer promises a service to the layer above and demands one from the layer below. The OSI model names seven; the internet actually runs on four or five. What matters for tunnel engineering is knowing exactly which layer you are standing on at any moment, because a VPN is a machine that lifts traffic out of one layer, wraps it, and re-injects it somewhere else.",
+            p: "Networking is a stack of contracts. Each layer promises a service to the layer above and demands one from the layer below. The **OSI** (Open Systems Interconnection) model names seven; the internet actually runs on four or five. What matters for tunnel engineering is knowing exactly which layer you are standing on at any moment, because a **VPN** (Virtual Private Network) is a machine that lifts traffic out of one layer, wraps it, and re-injects it somewhere else.",
           },
           {
             ul: [
               "**L2 (link)** — frames between directly connected machines: Ethernet, Wi-Fi. TAP devices live here.",
               "**L3 (network)** — IP packets routed hop-by-hop across networks. TUN devices and WireGuard live here.",
-              "**L4 (transport)** — TCP streams and UDP datagrams, addressed by port. SOCKS proxies and MASQUE CONNECT-UDP live here.",
-              "**L7 (application)** — HTTP, DNS, QUIC payloads. Split-tunnel-by-app and posture checks reason at this level.",
+              "**L4 (transport)** — TCP streams and UDP datagrams, addressed by port. **SOCKS** (Socket Secure) proxies and **MASQUE** (Multiplexed Application Substrate over QUIC Encryption) CONNECT-UDP live here.",
+              "**L7 (application)** — **HTTP** (Hypertext Transfer Protocol), **DNS** (Domain Name System), and **QUIC** (Quick UDP Internet Connections) payloads. Split-tunnel-by-app and posture checks reason at this level.",
             ],
           },
           {
@@ -65,7 +65,7 @@ export const CORE_MODULES: Module[] = [
         est: "12 min",
         blocks: [
           {
-            p: "An IPv4 address is a 32-bit integer with a costume on. CIDR notation, `10.8.0.0/24`, says: the first 24 bits identify the network, the remaining 8 identify hosts inside it. Everything else — network address, broadcast, host count — is bit arithmetic.",
+            p: "An IPv4 address is a 32-bit integer with a costume on. **CIDR** (Classless Inter-Domain Routing) notation, `10.8.0.0/24`, says: the first 24 bits identify the network, the remaining 8 identify hosts inside it. Everything else — network address, broadcast, host count — is bit arithmetic.",
           },
           {
             code: {
@@ -84,7 +84,7 @@ usable    = 62`,
             },
           },
           {
-            p: "Memorize the private (RFC 1918) ranges, because your overlay addressing must never collide with a user's LAN: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`. Also know `100.64.0.0/10` (CGNAT space, which Tailscale famously borrowed) and `169.254.0.0/16` (link-local).",
+            p: "Memorize the private (**RFC 1918** — the three non-routable IPv4 ranges) because your overlay addressing must never collide with a user's LAN: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`. Also know `100.64.0.0/10` (**CGNAT** — Carrier-Grade NAT space, which Tailscale famously borrowed) and `169.254.0.0/16` (link-local).",
           },
           { p: "In Rust, this arithmetic is one `u32`:" },
           {
@@ -168,7 +168,7 @@ assert_eq!(*iface, "wg0");`,
         est: "10 min",
         blocks: [
           {
-            p: "Every link has an MTU — the largest frame it will carry, typically 1500 bytes on Ethernet. Tunnels add headers **inside** that limit, so the overlay MTU must shrink. WireGuard over IPv4 costs 60 bytes; over IPv6, 80. Hence the canonical `wg0` MTU of 1420.",
+            p: "Every link has an **MTU** (Maximum Transmission Unit) — the largest frame it will carry, typically 1500 bytes on Ethernet. Tunnels add headers **inside** that limit, so the overlay MTU must shrink. WireGuard over IPv4 costs 60 bytes; over IPv6, 80. Hence the canonical `wg0` MTU of 1420.",
           },
           {
             diagram: {
@@ -1985,7 +1985,7 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
         est: "~10 min",
         blocks: [
           {
-            p: "Behind NAT (N11) you don't know what the world sees. **STUN** fixes that: send a request from your socket to a public STUN server; it replies with the source IP:port it observed — your **reflexive address**, i.e. the NAT mapping your socket currently owns.",
+            p: "Behind NAT (N11) you don't know what the world sees. **STUN** (Session Traversal Utilities for NAT) fixes that: send a request from your socket to a public STUN server; it replies with the source IP:port it observed — your **reflexive address**, i.e. the NAT mapping your socket currently owns.",
           },
           {
             p: "The address comes back in an **XOR-MAPPED-ADDRESS** attribute — XORed with the STUN magic cookie, not obfuscation for security but to stop broken NATs that 'helpfully' rewrite any bytes that look like their own IP inside payloads.",
@@ -2089,7 +2089,7 @@ let mapped = resp.attributes()
         est: "~10 min",
         blocks: [
           {
-            p: "**ICE** systematizes traversal. Each side gathers **candidates**: *host* (local addresses), *server-reflexive* (from STUN), and *relay* (from a TURN server). Exchange candidate lists via signaling, form all pairs, probe every pair with connectivity checks, then nominate the best pair that worked.",
+            p: "**ICE** (Interactive Connectivity Establishment) systematizes traversal. Each side gathers **candidates**: *host* (local addresses), *server-reflexive* (from STUN), and *relay* (from a TURN server). Exchange candidate lists via signaling, form all pairs, probe every pair with connectivity checks, then nominate the best pair that worked.",
           },
           {
             p: "The priority order encodes the obvious economics: host beats reflexive beats relay — prefer LAN-direct, then internet-direct, and pay the relay tax only when nothing else connects. Two laptops on the same coffee-shop Wi-Fi should talk over the LAN even if both are 'connected to a VPN in Frankfurt'.",
@@ -2109,7 +2109,7 @@ let mapped = resp.attributes()
         est: "~10 min",
         blocks: [
           {
-            p: "**TURN** is the IETF relay: authenticated clients allocate a relayed address on the server; peers send there; the server forwards. It's the guaranteed fallback — ugly, metered, and essential.",
+            p: "**TURN** (Traversal Using Relays around NAT) is the IETF relay: authenticated clients allocate a relayed address on the server; peers send there; the server forwards. It's the guaranteed fallback — ugly, metered, and essential.",
           },
           {
             p: "**DERP** (Tailscale's design) modernizes the idea: relays speak HTTPS on port 443 (traverses corporate firewalls that kill UDP entirely), and packets are addressed **by WireGuard public key**, not by allocated IP. Every client keeps a home DERP connection, so there is *always* a path — the relay carries the first (encrypted) packets instantly while hole punching runs in parallel, then traffic upgrades to the direct path transparently.",
@@ -2118,7 +2118,7 @@ let mapped = resp.attributes()
             p: "Key insight for your client: because payloads are end-to-end encrypted by WireGuard *before* relaying, relays are **untrusted infrastructure**. They see ciphertext and metadata only. Relay-first-then-upgrade turns NAT traversal from a connect-time gamble into a background optimization — connections feel instant, then quietly get fast.",
           },
           {
-            note: "Reading list: Tailscale's 'How NAT traversal works' is the field's best essay. RFC 8445 (ICE), RFC 5389/8489 (STUN), RFC 8656 (TURN) are the formal versions.",
+            note: "Reading list: [Tailscale's 'How NAT traversal works'](https://tailscale.com/blog/how-nat-traversal-works) is the field's best essay. RFC 8445 (ICE), RFC 5389/8489 (STUN), RFC 8656 (TURN) are the formal versions.",
             label: "go deeper",
           },
         ],
