@@ -63,6 +63,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "p03",
   },
   {
+    t: "Anti-entropy",
+    d: "The gossip technique where two nodes periodically compare and reconcile their state, healing whatever differs — how a decentralized peer table converges on one picture with no master copy.",
+    mod: "t05",
+  },
+  {
     t: "Anti-replay window",
     d: "The receiver's sliding window over data-packet counters: anything older than the window or already seen is dropped, so captured packets cannot be replayed.",
     mod: "m08",
@@ -233,6 +238,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n10",
   },
   {
+    t: "Community node",
+    d: "An ordinary mesh member — usually on a stable public address — that volunteers as an always-reachable rendezvous and relay point, letting strangers bootstrap without a dedicated discovery server. Anyone can run one; also called a public shared node.",
+    mod: "t05",
+  },
+  {
     t: "Compare-and-swap (CAS)",
     d: "The atomic primitive under every lock and lock-free structure — `compare_exchange`: 'if the value is still what I expect, replace it; otherwise tell me what it was.' Rust's spelling takes two memory orderings, one for success and one for failure.",
     mod: "r07",
@@ -253,6 +263,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "n16",
   },
   {
+    t: "Control plane",
+    d: "The part of a network that decides identity, membership, and routes, as opposed to the **data plane** that forwards packets. Its topology — coordinated versus decentralized — is a design axis independent of how traffic actually flows.",
+    mod: "t05",
+  },
+  {
     t: "Cookie (WireGuard)",
     d: "WireGuard's DoS armor: under load, a responder replies with a cookie the initiator must echo, proving IP ownership before the responder spends CPU on expensive handshake crypto.",
     mod: "m08",
@@ -261,6 +276,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Cooperative scheduling",
     d: "Async tasks yield only at `.await`; a task that computes or blocks without awaiting starves every other task on that worker. Tokio's task budget forces perpetually-ready tasks to yield eventually.",
     mod: "r06",
+  },
+  {
+    t: "Coordinated control plane",
+    d: "A mesh whose identity, ACLs, and peer list come from a central coordinator (the Tailscale model). Buys crisp, instant revocation, but the coordinator is a single point of control failure and trust — even though it never carries packets.",
+    mod: "t05",
   },
   {
     t: "Cryptokey routing",
@@ -291,6 +311,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Deauthentication attack",
     d: "Spoofing an unauthenticated 802.11 management frame 'from' the AP to kick a victim off Wi-Fi — repeated for denial of service, or once to force a reconnect onto an evil twin or re-capture the 4-way handshake. **PMF** (mandatory in WPA3) closes it.",
     mod: "n03",
+  },
+  {
+    t: "Decentralized control plane",
+    d: "A mesh with no coordinator: membership is a shared secret, any peer bootstraps a newcomer, and peer/route information gossips node-to-node. Survives infrastructure loss and censorship, but converges eventually and revokes slowly.",
+    mod: "t05",
   },
   {
     t: "Default deny",
@@ -476,6 +501,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "fwmark",
     d: "A Linux firewall mark stamped on packets (by nftables/iptables or a socket option) that policy-routing rules can match to choose a routing table — how WireGuard's own encrypted packets escape the tunnel's default route on Linux.",
     mod: "p03",
+  },
+  {
+    t: "Gossip protocol",
+    d: "An epidemic dissemination scheme where each node periodically exchanges state with a few random peers; a fact reaches everyone in about O(log N) rounds with smooth bandwidth, tolerating churn without a flood tree or coordinator.",
+    mod: "t05",
   },
   {
     t: "GSO/GRO",
@@ -793,6 +823,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     mod: "m01",
   },
   {
+    t: "Overlay routing",
+    d: "Computing paths inside the VPN's own peer graph — which peer relays to which — to reach a node no direct link can. Distinct from the underlay internet routing (N10) each hop still rides; here the edge metric is live latency.",
+    mod: "t05",
+  },
+  {
     t: "Ownership",
     d: "Rust's core rule: every value has exactly one owner, and when the owner goes out of scope the value is dropped. Memory and resource cleanup become deterministic without a garbage collector.",
     mod: "m04",
@@ -821,6 +856,16 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "PEAP",
     d: "Protected EAP — the ubiquitous enterprise Wi-Fi login: a TLS tunnel to the RADIUS server with a legacy username/password exchange (MSCHAPv2) inside. It inherits every password weakness, and skipped certificate validation turns it into a credential-stealing evil-twin target.",
     mod: "n06w",
+  },
+  {
+    t: "Peer relay",
+    d: "Forwarding two peers' traffic through an ordinary reachable member when they cannot establish a direct path — the mesh falls back to a peer before a dedicated relay (DERP/TURN, T04). The relay sees only ciphertext, so a stranger's node is safe to use.",
+    mod: "t05",
+  },
+  {
+    t: "Peer table",
+    d: "Each node's local, soft-state copy of the network — peers, their keys, current endpoints, and owned CIDRs — kept fresh by gossip and expiry, and read by the data plane to route and authenticate.",
+    mod: "t05",
   },
   {
     t: "Persistent keepalive",
@@ -881,6 +926,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "Rekey",
     d: "Replacing session keys with freshly derived ones on a schedule — WireGuard runs a new handshake roughly every two minutes — so any single compromised session key decrypts only a small window of traffic. The continuous, operational face of **forward secrecy**.",
     mod: "m08",
+  },
+  {
+    t: "Rendezvous node",
+    d: "A well-known reachable node used to introduce two peers that do not yet know each other's endpoints — the decentralized analogue of a signaling coordinator. In practice, a community / public shared node.",
+    mod: "t05",
   },
   {
     t: "repr(C)",
@@ -991,6 +1041,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     t: "SOCKS5",
     d: "Socket Secure version 5 — the protocol-agnostic proxy: hand it a destination and it relays raw TCP (and UDP via UDP ASSOCIATE). The classic local endpoint exposed by `ssh -D` and Tor.",
     mod: "p04",
+  },
+  {
+    t: "Soft state",
+    d: "Network state that must be periodically refreshed or it expires. Refreshing peer records on a keepalive cadence lets a peer table self-clean as nodes join and vanish, with no explicit teardown required.",
+    mod: "t05",
   },
   {
     t: "Soundness",

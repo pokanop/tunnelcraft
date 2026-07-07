@@ -650,6 +650,39 @@ export const EXAM_BANK: Record<string, Question[]> = {
       a: 3,
       why: "The ~2-minute period is the fingerprint of **rekey timing**: workers that snapshot the session key keep verifying against a dead key until they resync, so packets under the new key fail auth. Correct implementations keep the previous key valid for a grace window; replay-window reordering would cause drops continuously, not on a 2-minute rhythm.",
     },
+    {
+      q: "A team runs a coordinated overlay (central control plane, peer-to-peer data path). The coordinator's database is wiped at 3am and restored at 9am. During the outage, sessions from the night before kept working, but a colleague who rebooted at 5am could not reconnect. Best explanation?",
+      opts: [
+        "The data path runs through the coordinator, so only already-cached sessions survived",
+        "The coordinator is control-plane only: live tunnels are peer-to-peer and persist, but a fresh boot must fetch identity, the peer list, and ACLs — which were down",
+        "WireGuard keys expire at 180s, so only sessions younger than that survived",
+        "The DERP relays were down, breaking every direct connection",
+      ],
+      a: 1,
+      why: "The control/data split is the whole story: established peer-to-peer tunnels never touch the coordinator and keep flowing, but *bootstrapping* a node — identity, roster, routes — depends on it entirely. This asymmetric outage is the defining failure signature of the coordinated topology, and precisely what a decentralized control plane trades instant revocation to avoid.",
+    },
+    {
+      q: "Two peers hand your node conflicting endpoints for peer C, arriving over different gossip paths. How should a well-designed peer table decide which to keep?",
+      opts: [
+        "Keep whichever arrived last — newest packet wins",
+        "Keep the record with the highest per-origin sequence number that C itself stamped, regardless of the path it took",
+        "Average or merge the two endpoints",
+        "Drop both and query a coordinator for the truth",
+      ],
+      a: 1,
+      why: "Supersede by **version, not arrival**. Only C ever originates C's record, so a monotonic sequence C stamps makes the merge conflict-free (last-writer-wins per origin) — the same trick as OSPF LSA serials and DNS SOA numbers. 'Newest packet wins' loses to a stale record that simply arrived later over a slow path.",
+    },
+    {
+      q: "Your mesh client cannot hole-punch a direct path to peer D (both symmetric NAT). Its overlay router, running shortest-path over the peer graph, returns A→B→D. What has actually happened?",
+      opts: [
+        "A routing loop, since D is unreachable and should have been pruned",
+        "The unreachable direct A–D link simply is not an edge, so lowest-latency shortest-path naturally yields a two-hop relay through B — relaying is just a multi-hop path",
+        "BGP policy on the underlay chose B",
+        "The underlay rerouted around a failure; the overlay had nothing to do with it",
+      ],
+      a: 1,
+      why: "Model only *working* links as edges and relay-through-peer falls out of the same astar result that picks direct links — a one-hop path is 'direct,' a two-hop path is 'relay via the middle.' One mechanism, no special case. And because A and D encrypted end-to-end first (T02), B forwards ciphertext it cannot read, so a peer relay is as untrusted-safe as a DERP relay (T04).",
+    },
   ],
 
   ship: [

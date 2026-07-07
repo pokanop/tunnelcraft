@@ -1,5 +1,6 @@
 /* Assemble all modules into ordered tracks */
 import { CORE_MODULES } from "./core";
+import { TUNNEL_MESH } from "./tunnel-mesh";
 import { NET_A } from "./net-a";
 import { NET_DHCP } from "./net-dhcp";
 import { NET_WIFI } from "./net-wifi";
@@ -18,6 +19,7 @@ import type { Module, Track } from "./types";
 
 const POOL: Module[] = [
   ...CORE_MODULES,
+  ...TUNNEL_MESH,
   ...NET_A,
   ...NET_DHCP,
   ...NET_WIFI,
@@ -72,6 +74,7 @@ const ORDER: string[] = [
   "m08",
   "m09",
   "m10",
+  "t05",
   // SHIP track
   "m11",
   "p01",
@@ -129,8 +132,9 @@ export const TRACKS: Track[] = [
     id: "tunnel",
     code: "TRACK 3",
     title: "Tunnel Engineering",
-    blurb: "TUN/TAP packet I/O, Noise & AEAD crypto, WireGuard in practice, and NAT traversal.",
-    modules: ["m07", "m08", "m09", "m10"],
+    blurb:
+      "TUN/TAP packet I/O, Noise & AEAD crypto, WireGuard in practice, NAT traversal, and decentralized mesh VPNs — control-plane topology, gossiped peer tables, and overlay routing.",
+    modules: ["m07", "m08", "m09", "m10", "t05"],
   },
   {
     id: "ship",
