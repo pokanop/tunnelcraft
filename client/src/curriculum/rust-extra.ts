@@ -45,6 +45,37 @@ export const RUST_EXTRA: Module[] = [
           {
             code: {
               lang: "rust",
+              title: "Packet-path benchmark with criterion (teaching sketch)",
+              body: `use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+
+fn bench_extract_payload(c: &mut Criterion) {
+    let mut group = c.benchmark_group("payload_bytes");
+    for size in [1280usize, 4096] {
+        let data = vec![0u8; size];
+        group.throughput(Throughput::Bytes(size as u64));
+        group.bench_with_input(format!("{size}"), &data, |b, data| {
+            b.iter(|| black_box(extract_payload(black_box(data))))
+        });
+    }
+    group.finish();
+}
+
+// Teaching stub — swap for your real zero-copy accessor.
+fn extract_payload(buf: &[u8]) -> &[u8] {
+    &buf[24..] // skip a fixed header region
+}
+
+criterion_group!(benches, bench_extract_payload);
+criterion_main!(benches);`,
+            },
+          },
+          {
+            note: "**PRODUCTION ANCHOR** — [EasyTier](https://github.com/EasyTier/EasyTier) (LGPL-3.0) ships criterion benches such as `packet_bytes_extraction` that compare `payload_bytes()` vs `tunnel_payload_bytes()` at 1280- and 4096-byte MTUs — the same shape as above. Run with `cargo bench`; tune warmup and sample size when CI time matters.",
+            label: "PRODUCTION ANCHOR",
+          },
+          {
+            code: {
+              lang: "rust",
               title: "paused time: testing timers without waiting",
               body: '#[tokio::test(start_paused = true)]\nasync fn rekey_fires_at_120s() {\n    let mut peer = test_peer();\n    tokio::time::advance(Duration::from_secs(121)).await;\n    let out = peer.tunn_update(&mut buf);\n    assert!(matches!(out, TunnResult::WriteToNetwork(_)), "expected handshake initiation");\n}',
             },

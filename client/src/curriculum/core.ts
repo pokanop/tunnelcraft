@@ -131,6 +131,35 @@ default via 192.168.1.1 dev wlan0        # the underlay default
             note: "This /1 + /1 override plus the endpoint /32 pin is exactly what `wg-quick` does. When you build your own client you will re-implement it on every OS — with a different API each time (S01).",
             label: "FIELD NOTE",
           },
+          {
+            p: "Theory becomes code at the lookup: given a destination IP, walk a **prefix trie** (also called a radix tree) and return the value attached to the longest matching prefix. The `prefix-trie` crate's `PrefixMap` implements exactly this — insert CIDR blocks, call `get_lpm` for longest-prefix match — and is the data structure behind AllowedIPs-style routing in production mesh VPNs.",
+          },
+          {
+            code: {
+              lang: "rust",
+              title: "Longest-prefix lookup with prefix-trie (teaching sketch)",
+              body: `use cidr::Ipv4Cidr;
+use prefix_trie::PrefixMap;
+use std::net::Ipv4Addr;
+
+// Each route maps a CIDR to an egress label.
+let mut routes: PrefixMap<Ipv4Cidr, &str> = PrefixMap::new();
+routes.insert("10.8.0.0/24".parse().unwrap(), "wg0");
+routes.insert("10.0.0.0/8".parse().unwrap(), "eth0");
+routes.insert("0.0.0.0/0".parse().unwrap(), "wlan0");
+
+let dst: Ipv4Addr = "10.8.0.7".parse().unwrap();
+// /24 beats /8 beats /0 — same rule as \`ip route\`, now in one call.
+let (_, iface) = routes
+    .get_lpm(&Ipv4Cidr::new(dst, 32).unwrap())
+    .expect("default always matches");
+assert_eq!(*iface, "wg0");`,
+            },
+          },
+          {
+            note: "**PRODUCTION ANCHOR** — [EasyTier](https://github.com/EasyTier/EasyTier) (LGPL-3.0) stores overlay CIDR→peer mappings in `PrefixMap` snapshots swapped via `ArcSwap` — the same longest-prefix rule from this lesson, at mesh scale. Patterns described here; no code excerpts from the project.",
+            label: "PRODUCTION ANCHOR",
+          },
         ],
       },
       {
@@ -190,6 +219,27 @@ default via 192.168.1.1 dev wlan0        # the underlay default
         kind: "LIVE DRILL",
         prompt:
           "Subnet math must be reflexive before you write an AllowedIPs matcher. Compute the network address, broadcast address, and usable host count. New problems forever.",
+      },
+      {
+        id: "m01e3",
+        type: "blank",
+        title: "Longest-prefix match in code",
+        kind: "CODE LAB",
+        prompt:
+          "Fill the blanks so this prefix trie returns the most specific route for each destination — the same tiebreak `ip route` uses.",
+        code: `let mut routes: PrefixMap<Ipv4Cidr, &str> = PrefixMap::new();
+routes.insert("10.8.0.0/24".parse().unwrap(), "wg0");
+routes.insert("0.0.0.0/0".parse().unwrap(), "wlan0");
+
+let dst: Ipv4Addr = "10.8.0.7".parse().unwrap();
+let (_, iface) = routes.§0§(&Ipv4Cidr::new(dst, 32).unwrap()).§1§;
+assert_eq!(*iface, "§2§");`,
+        blanks: [
+          { opts: ["get_lpm", "get", "insert"], a: 0 },
+          { opts: ["unwrap", "clone", "iter"], a: 0 },
+          { opts: ["wg0", "wlan0", "eth0"], a: 0 },
+        ],
+        why: "get_lpm returns the longest matching prefix; /24 beats /0 for 10.8.0.7, so the overlay interface wg0 wins.",
       },
     ],
     quiz: {
@@ -971,6 +1021,58 @@ async fn engine_actor(mut rx: mpsc::Receiver<Cmd>, mut state: EngineState) {
             note: "This is the skeleton of a TunnelEngine runtime: the trait object lives inside an actor, the rest of the system holds only a cheap `mpsc::Sender` handle. Backpressure comes free — a bounded channel makes fast producers wait.",
             label: "ARCHITECTURE SEED",
           },
+          { h: "Scaling the actor: a concurrent peer table" },
+          {
+            p: "Channels serialize *commands*; they do not replace a **concurrent lookup table** that dozens of tasks read while peers connect and disconnect. Production mesh daemons combine three crates, each solving one job: **`DashMap`** for lock-free inserts and lookups of live peer handles (many readers, many writers); **`ArcSwap`** for atomically publishing whole routing-table snapshots without blocking the packet path (readers load an `Arc`, writers build-and-swap); **`moka`** for an async TTL cache of expensive-to-open connections (QUIC sessions, relay legs) so a reconnect storm does not re-handshake every flow.",
+          },
+          {
+            code: {
+              lang: "rust",
+              title: "Peer table sketch: DashMap + ArcSwap + moka (teaching)",
+              body: `use arc_swap::ArcSwap;
+use dashmap::DashMap;
+use moka::future::Cache;
+use std::sync::Arc;
+use std::time::Duration;
+
+struct PeerHandle { /* sockets, keys, stats */ }
+
+struct MeshRuntime {
+    // hot lookups: who is connected right now?
+    peers: DashMap<PeerId, Arc<PeerHandle>>,
+    // cold-but-frequent: which peer owns this CIDR? (immutable snapshot)
+    routes: ArcSwap<PrefixMap<Ipv4Cidr, PeerId>>,
+    // amortize expensive dials
+    quic_cache: Cache<PeerId, QuicConnection>,
+}
+
+impl MeshRuntime {
+    async fn forward(&self, dst: Ipv4Addr, pkt: Bytes) {
+        let peer = self.routes.load()
+            .get_lpm(&Ipv4Cidr::new(dst, 32).unwrap())
+            .map(|(_, id)| *id);
+        if let Some(id) = peer {
+            if let Some(conn) = self.quic_cache.get(&id).await {
+                conn.send(pkt).await;
+                return;
+            }
+            if let Some(p) = self.peers.get(&id) {
+                p.send(pkt).await;
+            }
+        }
+    }
+}
+
+// moka builder (called once at startup):
+let quic_cache = Cache::builder()
+    .time_to_live(Duration::from_secs(300))
+    .build();`,
+            },
+          },
+          {
+            note: "**PRODUCTION ANCHOR** — [EasyTier](https://github.com/EasyTier/EasyTier) (LGPL-3.0) uses this trio in its peer layer: `DashMap` for live peer entries, `ArcSwap<PrefixMap<…>>` for CIDR routing snapshots, and `moka::future::Cache` for QUIC connection reuse. Described by pattern, not quoted from source.",
+            label: "PRODUCTION ANCHOR",
+          },
         ],
       },
       {
@@ -1180,6 +1282,39 @@ let pkt: Bytes = buf.freeze();      // immutable, shareable
 router_tx.send(pkt.clone()).await?; // O(1) — refcount bump
 telemetry_tx.send(pkt).await?;      // same bytes, zero copies`,
             },
+          },
+          {
+            p: "`Bytes` solves **sharing** one buffer across owners. **`zerocopy`** solves **typing** bytes in place: mark a struct `#[repr(C, packed)]`, derive `FromBytes` / `AsBytes`, and interpret a slice as a header without parsing field-by-field or copying into a struct. The two compose — `Bytes` carries the datagram, `zerocopy` gives you a typed view of the header region — and together they are how production tunnels keep the full link zero-copy.",
+          },
+          {
+            code: {
+              lang: "rust",
+              title: "Typed header view with zerocopy (teaching sketch)",
+              body: `use bytes::Bytes;
+use zerocopy::{AsBytes, FromBytes, FromZeroes, byteorder::{NetworkEndian, U16}};
+
+#[repr(C, packed)]
+#[derive(AsBytes, FromBytes, FromZeroes, Clone, Copy, Debug)]
+struct UdpTunnelHeader {
+    conn_id: u32,
+    msg_type: u8,
+    padding: u8,
+    len: U16<NetworkEndian>,
+}
+
+fn header_of(pkt: &Bytes) -> Option<&UdpTunnelHeader> {
+    UdpTunnelHeader::ref_from(&pkt[..std::mem::size_of::<UdpTunnelHeader>()])
+}
+
+// payload starts immediately after the typed header — still zero-copy
+fn payload(pkt: &Bytes) -> &[u8] {
+    &pkt[std::mem::size_of::<UdpTunnelHeader>()..]
+}`,
+            },
+          },
+          {
+            note: "**PRODUCTION ANCHOR** — [EasyTier](https://github.com/EasyTier/EasyTier) (LGPL-3.0) wraps tunnel packets in a `ZCPacket` type built on `Bytes` plus `zerocopy` header structs — the pattern above, scaled to a full protocol stack. Criterion benches in that project measure `payload_bytes()` extraction on hot paths; see R07 for the benchmarking side.",
+            label: "PRODUCTION ANCHOR",
           },
         ],
       },
@@ -1862,6 +1997,39 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
             note: "Crucial detail: STUN must be sent from the SAME socket you'll use for tunnel traffic. A different socket gets a different mapping, and the address you learned is useless.",
             label: "same socket!",
           },
+          {
+            p: "On the wire, STUN is a typed binary protocol — not JSON, not protobuf. The **`stun_codec`** crate gives you `MessageEncoder` / `MessageDecoder` for RFC 5389/8489: build a BINDING request, send it from your tunnel socket, decode the Success Response, and read the **XOR-MAPPED-ADDRESS** attribute. That is the reflexive address this lesson describes, without hand-rolling byte offsets.",
+          },
+          {
+            code: {
+              lang: "rust",
+              title: "STUN BINDING with stun_codec (teaching sketch)",
+              body: `use rand::random;
+use stun_codec::rfc5389::{methods::BINDING, attributes::XorMappedAddress, Attribute};
+use stun_codec::{Message, MessageClass, MessageDecoder, MessageEncoder};
+
+// --- send (from the same UdpSocket your tunnel will use) ---
+let tid = random::<[u8; 12]>();
+let req = Message::<Attribute>::new(MessageClass::Request, BINDING, tid);
+let bytes = MessageEncoder::new().encode_into_bytes(req)?;
+
+// --- recv & decode ---
+let mut dec = MessageDecoder::<Attribute>::new();
+let resp = dec.decode_from_bytes(&buf[..n])?;
+assert_eq!(resp.class(), MessageClass::SuccessResponse);
+
+let mapped = resp.attributes()
+    .find_map(|a| match a {
+        Attribute::XorMappedAddress(x) => Some(x.address()),
+        _ => None,
+    })
+    .expect("reflexive address");`,
+            },
+          },
+          {
+            note: "**PRODUCTION ANCHOR** — [EasyTier](https://github.com/EasyTier/EasyTier) (LGPL-3.0) uses `stun_codec` for NAT-type detection and reflexive-address discovery — the same BINDING encode/decode flow as above, wired into its async STUN client. Pattern reference only; no excerpts from the project.",
+            label: "PRODUCTION ANCHOR",
+          },
         ],
       },
       {
@@ -1972,6 +2140,23 @@ let cfg: PeerConfig = toml::from_str(raw)?;`,
           "Traffic flows direct, with the relay held as fallback",
         ],
         why: "STUN teaches, signaling coordinates, simultaneity opens, nomination optimizes, the relay guarantees.",
+      },
+      {
+        id: "m10e2",
+        type: "blank",
+        title: "Decode a STUN Success Response",
+        kind: "CODE LAB",
+        prompt:
+          "Fill the blanks to decode a STUN response and extract the reflexive address — the step between 'bytes on the wire' and 'my public mapping'.",
+        code: `let mut dec = MessageDecoder::<Attribute>::§0§();
+let resp = dec.§1§(&buf[..n])?;
+assert_eq!(resp.§2§(), MessageClass::SuccessResponse);`,
+        blanks: [
+          { opts: ["new", "default", "open"], a: 0 },
+          { opts: ["decode_from_bytes", "read_exact", "parse"], a: 0 },
+          { opts: ["class", "method", "version"], a: 0 },
+        ],
+        why: "MessageDecoder::new() starts a fresh parser; decode_from_bytes consumes one complete STUN message; class() distinguishes SuccessResponse from errors.",
       },
     ],
     quiz: {
