@@ -67,6 +67,10 @@ impl PeerTable {
 
 /// One gossip round: each node broadcasts its own record to every other node.
 pub fn gossip_round(nodes: &mut [(&NodeId, PeerRecord, PeerTable)]) -> usize {
+    for (_, rec, table) in nodes.iter_mut() {
+        table.merge(rec.clone());
+    }
+
     let frames: Vec<(NodeId, Vec<u8>)> = nodes
         .iter()
         .map(|(id, rec, _)| {
