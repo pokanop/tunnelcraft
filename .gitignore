@@ -11,4 +11,5 @@ server/data/
 .DS_Store
 .vscode/
 .idea/
+labs/capstone/target/
 npm-debug.log*
