@@ -683,6 +683,39 @@ export const EXAM_BANK: Record<string, Question[]> = {
       a: 1,
       why: "Model only *working* links as edges and relay-through-peer falls out of the same astar result that picks direct links — a one-hop path is 'direct,' a two-hop path is 'relay via the middle.' One mechanism, no special case. And because A and D encrypted end-to-end first (T02), B forwards ciphertext it cannot read, so a peer relay is as untrusted-safe as a DERP relay (T04).",
     },
+    {
+      q: "You multiplex twenty tunneled flows over one carriage. On a lossy path, which carriage lets a single lost packet stall only the flow it belongs to, rather than all twenty?",
+      opts: [
+        "One shared TCP connection — TCP's reliability protects every flow equally",
+        "QUIC with a stream per flow — independent per-stream delivery means a loss stalls only its own stream",
+        "A single WebSocket over TLS — message framing isolates the flows",
+        "Raw UDP with a length prefix — the prefix keeps flows independent",
+      ],
+      a: 1,
+      why: "Sharing one reliable *byte stream* (TCP, or a single WS/TLS stream) means one dropped segment head-of-line-blocks everything queued behind it — all twenty flows stall together. QUIC gives each flow its own stream with independent loss recovery, so the damage is contained to the flow that lost a packet. It is the head-of-line fix from N11 applied to your own carriage; the length prefix on raw UDP frames messages but does nothing about loss.",
+    },
+    {
+      q: "A tunnel needs the lowest possible latency over a dedicated 5%-loss radio link and you control both ends and the whole link budget. Default-CC QUIC underperforms a rude ARQ here. Why does KCP win, and what is the trade you accept?",
+      opts: [
+        "KCP encrypts less, so it is faster; you accept weaker security",
+        "KCP interprets the 5% loss as loss (not congestion), retransmits on skipped ACKs without backing off, and can drop flow control — spending ~10–20% more bandwidth to cut latency ~30–40%",
+        "KCP runs over TCP, avoiding UDP's unreliability; you accept meltdown risk",
+        "KCP raises the MTU to fit more per packet; you accept fragmentation",
+      ],
+      a: 1,
+      why: "Congestion control treats loss as a back-off signal — wrong when the loss is an unreliable link, not contention. KCP resends fast on skipped ACKs, ACKs immediately, backs off gently (RTO ×1.5), and can disable flow control, buying large latency wins for ~10–20% more bandwidth. The trade — extra bandwidth and unfairness to neighbours — is acceptable only because you own the dedicated link; on a shared uplink that rudeness harms everyone else.",
+    },
+    {
+      q: "Building traversal for a node meant to serve as a rendezvous, you add a UPnP IGD / NAT-PMP port-mapping request beside STUN and hole punching. What does this candidate add that a punched hole does not — and where does it silently do nothing?",
+      opts: [
+        "It encrypts the path; it does nothing on IPv6",
+        "It yields a stable, inbound-capable endpoint with no keepalives — but does nothing behind carrier-grade NAT, where no gateway answers to you",
+        "It replaces the relay entirely; it does nothing when TLS is required",
+        "It guarantees the lowest latency path; it does nothing on Wi-Fi",
+      ],
+      a: 1,
+      why: "Asking the gateway to forward a port gives a mapping that is stable (no keepalive traffic to hold it open) and accepts inbound connections — exactly what a rendezvous node wants, and a first-class ICE candidate alongside STUN. But carrier-grade NAT lives in the operator's network and speaks neither UPnP nor NAT-PMP to you, so on mobile the request just fails and you fall back to hole punching plus a relay (T04). It complements traversal; it never replaces it.",
+    },
   ],
 
   ship: [
