@@ -58,9 +58,10 @@ export async function sendReminderMail(email: string, dueCards: number): Promise
     );
     return link;
   }
-  const body = dueCards > 0
-    ? "You have " + dueCards + " review cards due. " + link
-    : "Keep your streak going! " + link;
+  const body =
+    dueCards > 0
+      ? "You have " + dueCards + " review cards due. " + link
+      : "Keep your streak going! " + link;
   return send(email, "TUNNELCRAFT study reminder", body);
 }
 
