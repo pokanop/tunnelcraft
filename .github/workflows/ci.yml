@@ -38,6 +38,29 @@ jobs:
       - name: Build image
         run: docker build -t tunnelcraft:ci .
 
+  publish:
+    needs: [check, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64]
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/pokanop/tunnelcraft:latest
+            ghcr.io/pokanop/tunnelcraft:${{ github.sha }}
+
   capstone-labs:
     runs-on: [self-hosted, linux, x64]
     steps:
