@@ -126,22 +126,28 @@ server-side; the merge is monotonic (you can't lose completed work by racing dev
 
 ## Environment
 
-| Var                                         | Default                 | Meaning                                                                                                         |
-| ------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `PORT`                                      | `4000`                  | server port                                                                                                     |
-| `DATA_DIR`                                  | `server/data`           | where `tunnelcraft.db` lives                                                                                    |
-| `BASE_URL`                                  | `http://localhost:4000` | public origin for OAuth redirect URIs and reset links                                                           |
-| `SMTP_HOST` (+ friends)                     | unset                   | reset emails log to the server console until a real transport is wired in `server/src/mail.ts`                  |
-| `LOG_LEVEL`                                 | `info`                  | pino level (`debug` shows health probes and more); pipe through `npx pino-pretty` for human-readable dev output |
-| `SHUTDOWN_TIMEOUT_MS`                       | `10000`                 | hard deadline for graceful drain before forced exit                                                             |
-| `BACKUP_TOKEN`                              | unset                   | enables `POST /api/admin/backup` when set; unset disables the endpoint entirely                                 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | unset                   | enables "Continue with Google" (redirect URI: `BASE_URL/api/auth/google/callback`)                              |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | unset                   | enables "Continue with GitHub" (callback URL: `BASE_URL/api/auth/github/callback`)                              |
+| Var                                         | Default                               | Meaning                                                                                                         |
+| ------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                      | `4000`                                | server port                                                                                                     |
+| `DATA_DIR`                                  | `server/data`                         | where `tunnelcraft.db` lives                                                                                    |
+| `BASE_URL`                                  | `http://localhost:4000`               | public origin for OAuth redirect URIs and reset links                                                           |
+| `SMTP_HOST` (+ friends)                     | unset                                 | reset emails log to the server console until a real transport is wired in `server/src/mail.ts`                  |
+| `LOG_LEVEL`                                 | `info`                                | pino level (`debug` shows health probes and more); pipe through `npx pino-pretty` for human-readable dev output |
+| `SHUTDOWN_TIMEOUT_MS`                       | `10000`                               | hard deadline for graceful drain before forced exit                                                             |
+| `BACKUP_TOKEN`                              | unset                                 | enables `POST /api/admin/backup` when set; unset disables the endpoint entirely                                 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | unset                                 | enables "Continue with Google" (redirect URI: `BASE_URL/api/auth/google/callback`)                              |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | unset                                 | enables "Continue with GitHub" (callback URL: `BASE_URL/api/auth/github/callback`)                              |
+| `VITE_DONATE_GITHUB_SPONSORS_URL`           | `https://github.com/sponsors/pokanop` | **client build:** GitHub Sponsors CTA URL (defaults to the pokanop profile; override per deployment)            |
+| `VITE_DONATE_KOFI_URL`                      | `https://ko-fi.com/pokanop`           | **client build:** Ko-fi CTA URL (defaults to the pokanop page; override per deployment)                         |
 
 Social login is opt-in per provider: buttons appear automatically on the sign-in screen
 for whichever providers have credentials set (`GET /api/auth/providers` reports them).
 Create the apps at console.cloud.google.com and github.com/settings/developers, register
 the callback URLs above, and set the env vars — no code changes needed.
+
+Donation CTAs (footer, landing, account) link to the pokanop GitHub Sponsors and Ko-fi
+pages by default — no configuration required. Set the `VITE_DONATE_*` vars at client
+build time only if you need to point them elsewhere.
 
 ## Schema changes & backups
 

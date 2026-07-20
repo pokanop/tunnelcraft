@@ -5,6 +5,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 import { Header } from "./components/header";
 import { SearchOverlay } from "./components/search";
 import { VerifyBanner } from "./components/verify";
+import { Donate } from "./components/donate";
 import { deckStats, recordReview } from "./lib/review";
 import {
   api,
@@ -261,6 +262,7 @@ export default function App() {
                 : "guest progress on this device — sign in to sync"}{" "}
               · {totals.done}/{totals.total} units complete
             </span>
+            <Donate variant="links" />
             <button className="reset" onClick={doReset}>
               {resetArm ? "TAP AGAIN TO WIPE PROGRESS" : "RESET PROGRESS"}
             </button>

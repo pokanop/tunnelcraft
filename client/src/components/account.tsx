@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { PublicUser, SessionInfo } from "../lib/api";
+import { Donate } from "./donate";
 
 /* Account panel: active sessions, password management, danger zone.
    Rendered when the user taps their name in the header. */
@@ -192,6 +193,15 @@ export function AccountView({ user, onSignOut, onDeleted, onBack }: AccountViewP
           >
             {remind ? "● REMINDERS ON — TURN OFF" : "○ REMINDERS OFF — TURN ON"}
           </button>
+        </div>
+
+        <div className="acctsec">
+          <div className="acctsec-t">SUPPORT TUNNELCRAFT</div>
+          <p className="authsub">
+            Tunnelcraft is free and open source. If it's helped you, consider sponsoring the project
+            — every contribution keeps the servers and the curriculum running.
+          </p>
+          <Donate variant="buttons" />
         </div>
 
         <div className="acctsec danger">
