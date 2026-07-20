@@ -1325,3 +1325,20 @@
   justify-content: center;
   margin-top: 18px;
 }
+
+/* ---------- exam pass-state sponsor line ---------- */
+.cert-sponsor {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel2);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.04em;
+  color: var(--mut);
+}
+.cert-sponsor .donate-links {
+  font-size: var(--fs-sm);
+}

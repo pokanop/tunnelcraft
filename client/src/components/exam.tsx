@@ -4,6 +4,8 @@ import { shuffle } from "./exercises";
 import { buildExam, certCode, examPool, EXAM_LEN, EXAM_MINUTES, EXAM_PASS } from "../lib/exam";
 import { recordMiss, recordMissCard } from "../lib/review";
 import { localDay } from "../lib/progress";
+import { hasDonationTarget } from "../lib/donate";
+import { Donate } from "./donate";
 import type { ExamQuestion } from "../lib/exam";
 import type { Progress } from "../lib/progress";
 import type { PublicUser } from "../lib/api";
@@ -199,6 +201,12 @@ export function ExamView({ track, user, prog, update, go }: ExamViewProps) {
             REVIEW MISSES
           </button>
         </div>
+
+        {passed && hasDonationTarget() && (
+          <p className="cert-sponsor">
+            Found this useful? <Donate variant="links" />
+          </p>
+        )}
 
         {paper.map((eq, i) => (
           <div className="q" key={i}>
