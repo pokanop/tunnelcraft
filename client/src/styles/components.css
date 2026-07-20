@@ -1291,3 +1291,72 @@
   font-size: 10px;
   fill: var(--dim);
 }
+
+/* ---------- donate CTAs (POK-322) ----------
+   Fail-safe: these only mount when at least one VITE_DONATE_* env var is set,
+   so the styles below are inert in the default "ships dark" build. Plain
+   anchors composing existing button classes; no new runtime dependency. */
+.donate-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-wide);
+  color: var(--dim);
+}
+.donate-row-label {
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.donate-sep {
+  color: var(--dim);
+}
+.donate-link {
+  color: var(--acc);
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color var(--dur-1) ease;
+}
+.donate-link:hover {
+  color: var(--acc2);
+}
+.donate-link:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+.donate-cta {
+  margin-top: var(--sp-4);
+}
+.donate-cta-btns {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.cert-sponsor {
+  margin-top: var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--dim);
+  letter-spacing: var(--track-tight);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.footer-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+@media (max-width: 640px) {
+  .footer-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-2);
+  }
+}

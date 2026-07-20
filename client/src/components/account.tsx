@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { PublicUser, SessionInfo } from "../lib/api";
+import { donateTargets, hasDonationTarget } from "../lib/donate";
 
 /* Account panel: active sessions, password management, danger zone.
    Rendered when the user taps their name in the header. */
@@ -193,6 +194,29 @@ export function AccountView({ user, onSignOut, onDeleted, onBack }: AccountViewP
             {remind ? "● REMINDERS ON — TURN OFF" : "○ REMINDERS OFF — TURN ON"}
           </button>
         </div>
+
+        {hasDonationTarget() && (
+          <div className="acctsec">
+            <div className="acctsec-t">SUPPORT TUNNELCRAFT</div>
+            <p className="authsub">
+              TunnelCraft is free and open source. If it's been worth your time, consider sponsoring
+              the project — every bit helps keep the labs and curriculum growing.
+            </p>
+            <div className="authactions">
+              {donateTargets.map((t) => (
+                <a
+                  key={t.id}
+                  className="btn ghost socialbtn"
+                  href={t.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {"SPONSOR · " + t.label.toUpperCase()}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="acctsec danger">
           <div className="acctsec-t">DANGER ZONE</div>

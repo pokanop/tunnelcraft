@@ -7,6 +7,7 @@ import { TRACKS } from "../curriculum/tracks";
 import { byId, grandTotals, totalHours } from "../lib/stats";
 import { DiagramView } from "../lib/diagram";
 import { useApp } from "../App";
+import { DonateCTA } from "../components/donate";
 
 const trackMeta = (
   modIds: string[]
@@ -52,15 +53,15 @@ export function LandingPage() {
           </div>
           <div className="land-cta">
             <button className="btn" onClick={() => go({ v: "home" })}>
-              {started ? "RESUME TRAINING →" : "START LEARNING — FREE →"}
+              {started ? "RESUME TRAINING →" : "START LEARNING →"}
             </button>
             <button className="btn ghost" onClick={() => go({ v: "auth" })}>
               CREATE AN ACCOUNT
             </button>
           </div>
           <p className="land-fine">
-            No sign-up required to start — progress lives on this device until you create an
-            account, then follows you everywhere.
+            Free and open source — no sign-up required. Progress lives on this device until you
+            create an account, then follows you everywhere.
           </p>
           <div className="stats" style={{ marginTop: 30 }}>
             <div className="stat">
@@ -262,7 +263,7 @@ export function LandingPage() {
         <div className="wrap">
           <h2 className="land-h2">Begin transmission.</h2>
           <p className="sub land-sub">
-            Free to start, no card, no sign-up. Your first packet is one click away.
+            Free and open source. No sign-up required — your first packet is one click away.
           </p>
           <div className="land-cta">
             <button className="btn" onClick={() => go({ v: "home" })}>
@@ -272,6 +273,7 @@ export function LandingPage() {
               SIGN IN
             </button>
           </div>
+          <DonateCTA />
         </div>
       </section>
     </div>

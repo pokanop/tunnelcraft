@@ -143,6 +143,23 @@ for whichever providers have credentials set (`GET /api/auth/providers` reports 
 Create the apps at console.cloud.google.com and github.com/settings/developers, register
 the callback URLs above, and set the env vars — no code changes needed.
 
+### Client build vars (`client/`)
+
+Donation CTAs are Vite build-time env vars consumed by `client/src/lib/donate.ts`.
+Each is **optional and unset = hidden** — leave them blank and the app ships with
+donate UI dark (fail-safe). Set any one to surface only that target.
+
+| Var                               | Default | Meaning                                                                                                           |
+| --------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `VITE_DONATE_GITHUB_SPONSORS_URL` | unset   | full GitHub Sponsors URL (e.g. `https://github.com/sponsors/<handle>`) — surfaces the footer/account/landing CTAs |
+| `VITE_DONATE_KOFI_URL`            | unset   | full Ko-fi URL (e.g. `https://ko-fi.com/<handle>`) — surfaces the footer/account/landing CTAs                     |
+| `VITE_DONATE_OPENCOLLECTIVE_URL`  | unset   | full Open Collective URL (e.g. `https://opencollective.com/<slug>`) — optional third target                       |
+
+These are public strings (not secrets), baked in at `vite build` time. Setting a var
+later requires a client rebuild — no code change. Anchor targets are static external
+links only (`target="_blank"`, `rel="noopener noreferrer"`); no third-party scripts or
+iframes are loaded.
+
 ## Schema changes & backups
 
 **Adding a migration:** append an entry to `MIGRATIONS` in `server/src/db.ts` with the

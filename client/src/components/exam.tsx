@@ -9,6 +9,8 @@ import type { Progress } from "../lib/progress";
 import type { PublicUser } from "../lib/api";
 import type { Track } from "../curriculum/types";
 import type { Route } from "../lib/nav";
+import { hasDonationTarget } from "../lib/donate";
+import { DonateLinks } from "./donate";
 
 /* Final exam: a timed, randomized paper drawn fresh each sitting from the
    track's full question pool. Pass ≥ EXAM_PASS% → printable certificate.
@@ -199,6 +201,12 @@ export function ExamView({ track, user, prog, update, go }: ExamViewProps) {
             REVIEW MISSES
           </button>
         </div>
+
+        {passed && hasDonationTarget() && (
+          <p className="cert-sponsor">
+            Found this useful? <DonateLinks />
+          </p>
+        )}
 
         {paper.map((eq, i) => (
           <div className="q" key={i}>
