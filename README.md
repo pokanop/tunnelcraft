@@ -139,6 +139,7 @@ server-side; the merge is monotonic (you can't lose completed work by racing dev
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | unset                                 | enables "Continue with GitHub" (callback URL: `BASE_URL/api/auth/github/callback`)                              |
 | `VITE_DONATE_GITHUB_SPONSORS_URL`           | `https://github.com/sponsors/pokanop` | **client build:** GitHub Sponsors CTA URL (defaults to the pokanop profile; override per deployment)            |
 | `VITE_DONATE_KOFI_URL`                      | `https://ko-fi.com/pokanop`           | **client build:** Ko-fi CTA URL (defaults to the pokanop page; override per deployment)                         |
+<a href="https://www.buymeacoffee.com/pokanopapps" target="_blank"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" height="28"></a>
 
 Social login is opt-in per provider: buttons appear automatically on the sign-in screen
 for whichever providers have credentials set (`GET /api/auth/providers` reports them).
