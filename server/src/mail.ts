@@ -66,7 +66,7 @@ export async function sendReminderMail(email: string, dueCards: number): Promise
 }
 
 export async function sendResetMail(email: string, token: string): Promise<string> {
-  const link = BASE_URL + "/#reset=" + token;
+  const link = BASE_URL + "/reset-password#reset=" + token;
   if (!process.env.SMTP_HOST) {
     mailLog.info({ to: email, kind: "reset", link }, "dev transport: reset link");
     return link;

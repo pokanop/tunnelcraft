@@ -30,6 +30,12 @@ jobs:
       - name: Build client
         run: bun run build
 
+      - name: Install Chromium
+        run: bunx playwright install chromium
+
+      - name: Browser routing regression
+        run: bunx playwright test
+
   docker:
     runs-on: [self-hosted, linux, x64]
     steps:

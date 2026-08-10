@@ -14,6 +14,7 @@
     "build": "bun run --cwd client build",
     "start": "bun run --cwd server start",
     "test": "bun test",
+    "test:e2e": "bun run build && playwright test",
     "preview": "bun run --cwd client preview",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
@@ -25,6 +26,7 @@
     "clean": "rm -rf node_modules client/node_modules server/node_modules client/dist"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.72.0",
     "typescript": "^6.0.3"
