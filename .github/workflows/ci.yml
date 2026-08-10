@@ -39,12 +39,15 @@ jobs:
         run: docker build -t tunnelcraft:ci .
 
   publish:
-    needs: [check, docker]
+    needs: [check, docker, capstone-labs]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
+    env:
+      IMAGE: ghcr.io/pokanop/tunnelcraft
     steps:
       - uses: actions/checkout@v4
 
@@ -58,14 +61,66 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - name: Build and publish image
+        id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/pokanop/tunnelcraft:latest
-            ghcr.io/pokanop/tunnelcraft:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+
+      - name: Verify multi-architecture image
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          index="$(docker buildx imagetools inspect "${IMAGE}@${DIGEST}" --raw)"
+
+          jq -e '
+            any(.manifests[]; .platform.os == "linux" and .platform.architecture == "amd64") and
+            any(.manifests[]; .platform.os == "linux" and .platform.architecture == "arm64")
+          ' <<<"${index}" >/dev/null
+
+          jq -r '
+            .manifests[] |
+            select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) |
+            "\(.platform.os)/\(.platform.architecture) \(.digest)"
+          ' <<<"${index}"
+          printf 'index %s\n' "${DIGEST}"
+
+      - name: Deploy published image with Dokploy
+        if: vars.DOKPLOY_DEPLOY_ENABLED == 'true'
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+        run: |
+          missing=""
+          for name in DOKPLOY_API_KEY DOKPLOY_APPLICATION_ID DOKPLOY_URL; do
+            if [ -z "${!name}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+          if [ -n "${missing}" ]; then
+            printf 'Missing required GitHub Actions secrets:%s\n' "${missing}" >&2
+            exit 1
+          fi
+
+          short_sha="${GITHUB_SHA:0:7}"
+          payload="$(jq -n \
+            --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
+            --arg title "GHCR ${short_sha}" \
+            --arg description "Published ${IMAGE}@${{ steps.build.outputs.digest }} from ${GITHUB_SHA}" \
+            '{applicationId: $applicationId, title: $title, description: $description}')"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "content-type: application/json" \
+            --header "x-api-key: ${DOKPLOY_API_KEY}" \
+            --data "${payload}" \
+            "${DOKPLOY_URL%/}/api/application.deploy"
 
   capstone-labs:
     runs-on: [self-hosted, linux, x64]
