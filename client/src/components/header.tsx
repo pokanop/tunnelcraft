@@ -105,6 +105,11 @@ export function Header(props: HeaderProps) {
           <button className="navlink" onClick={() => nav({ v: "glossary" })}>
             GLOSSARY
           </button>
+          {user?.role === "admin" && (
+            <button className="navlink adminnav" onClick={() => nav({ v: "admin" })}>
+              ADMIN
+            </button>
+          )}
         </nav>
 
         <div className="hdr-right">
@@ -179,6 +184,11 @@ export function Header(props: HeaderProps) {
           <button className="mnav-link" onClick={() => nav({ v: "glossary" })}>
             GLOSSARY <span aria-hidden="true">→</span>
           </button>
+          {user?.role === "admin" && (
+            <button className="mnav-link" onClick={() => nav({ v: "admin" })}>
+              ADMIN <span aria-hidden="true">→</span>
+            </button>
+          )}
           <button className="mnav-link" onClick={() => nav(acctRoute)}>
             {user ? "ACCOUNT — " + acctLabel : "SIGN IN"} <span aria-hidden="true">→</span>
           </button>
