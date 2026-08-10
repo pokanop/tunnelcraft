@@ -86,29 +86,27 @@ async function api<T = unknown>(
   return { status: res.status, json: json as T };
 }
 
-/* Recover the most recent one-time token of a given kind from the captured
-   server log. The dev mail transport logs JSON lines like
-   {"sub":"mail","kind":"reset","link":".../#reset=TOKEN",...}.
-   `fromOffset` restricts the search to log appended after that character
-   index, so callers that request a fresh token can't accidentally pick up a
-   stale line left by an earlier test. */
-function tokenFromLog(kind: "reset" | "verify", fromOffset = 0): string | null {
+/* Recover the most recent email link of a given kind from the captured server
+   log. `fromOffset` prevents a fresh request from seeing stale mail emitted by
+   an earlier test. */
+function mailLinkFromLog(kind: "reset" | "verify", fromOffset = 0): string | null {
   const lines = serverLog.slice(fromOffset).split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
     if (!line || !line.includes(`"kind":"${kind}"`)) continue;
     try {
       const o = JSON.parse(line) as { link?: string };
-      if (typeof o.link === "string") {
-        const m = o.link.match(new RegExp(`#${kind}=([A-Za-z0-9_-]+)`));
-        const tok = m?.[1];
-        if (tok) return tok;
-      }
+      if (typeof o.link === "string") return o.link;
     } catch {
       /* not a JSON log line */
     }
   }
   return null;
+}
+
+function tokenFromLog(kind: "reset" | "verify", fromOffset = 0): string | null {
+  const link = mailLinkFromLog(kind, fromOffset);
+  return link?.match(new RegExp(`#${kind}=([A-Za-z0-9_-]+)`))?.[1] ?? null;
 }
 
 /* Register a fresh password account. Each reset-flow test uses its own account
@@ -338,9 +336,10 @@ describe("password reset flow", () => {
   // stay within that budget (2 + 1 + 1 + 1 = 5 across the suite). Each test
   // owns its own account so token/password state can't leak between them.
 
-  test("forgot-password is enumeration-safe (identical response for known vs unknown email)", async () => {
+  test("forgot-password is enumeration-safe and links to the password-reset page", async () => {
     const email = "enum@example.com";
     await registerAccount(email, "a strong password");
+    const logFrom = serverLog.length;
     const known = await api<{ message: string }>("POST", "/api/auth/forgot-password", {
       body: { email },
     });
@@ -349,6 +348,10 @@ describe("password reset flow", () => {
     });
     assert.equal(known.status, 200);
     assert.equal(known.json.message, unknown.json.message);
+    const resetLink = mailLinkFromLog("reset", logFrom);
+    assert.ok(resetLink);
+    assert.equal(new URL(resetLink).pathname, "/reset-password");
+    assert.match(new URL(resetLink).hash, /^#reset=[A-Za-z0-9_-]+$/);
   });
 
   test("reset-password rejects an unknown or expired token", async () => {

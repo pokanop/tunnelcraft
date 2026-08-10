@@ -23,6 +23,7 @@ import type { Progress } from "./lib/progress";
 import { useTheme } from "./lib/theme";
 import { routeToPath } from "./lib/nav";
 import type { Route } from "./lib/nav";
+import { authFragmentDestination } from "./lib/auth-links";
 import { grandTotals } from "./lib/stats";
 import type { SearchResult } from "./lib/search";
 
@@ -71,15 +72,8 @@ export default function App() {
 
   /* boot: local first, then session restore + server merge */
   useEffect(() => {
-    if (
-      window.location.hash.startsWith("#reset=") ||
-      window.location.hash.startsWith("#oauth_error=")
-    ) {
-      // hash: true preserves the fragment so AuthView can read the reset token
-      // (or oauth_error message) after the route change — without it, navigate
-      // drops the hash and the reset form never renders (POK-330).
-      navigate({ to: "/auth", hash: true, replace: true });
-    }
+    const fragmentDestination = authFragmentDestination(window.location.hash);
+    if (fragmentDestination) navigate({ to: fragmentDestination, hash: true, replace: true });
     const local = loadLocal();
     setProg(local);
     if (!getToken()) return;

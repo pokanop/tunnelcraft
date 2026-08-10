@@ -13,18 +13,10 @@ interface AuthViewProps {
   onBack: () => void;
 }
 
-type AuthMode = "login" | "register" | "forgot" | "reset";
+type AuthMode = "login" | "register" | "forgot";
 
 export function AuthView({ onAuthed, onBack }: AuthViewProps) {
-  const [mode, setMode] = useState<AuthMode>(() =>
-    typeof window !== "undefined" && window.location.hash.startsWith("#reset=") ? "reset" : "login"
-  );
-  const [resetToken] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    const m = window.location.hash.match(/^#reset=([A-Za-z0-9_-]+)/);
-    if (m) history.replaceState(null, "", window.location.pathname);
-    return m?.[1] ?? null;
-  });
+  const [mode, setMode] = useState<AuthMode>("login");
   const [providers, setProviders] = useState<string[]>([]);
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -82,16 +74,13 @@ export function AuthView({ onAuthed, onBack }: AuthViewProps) {
             ? "Sign in"
             : mode === "register"
               ? "Create your account"
-              : mode === "forgot"
-                ? "Reset your password"
-                : "Set a new password"}
+              : "Reset your password"}
         </h2>
         <p className="authsub">
           Progress syncs to the server on every change and follows you across devices. Guest
           progress on this device is merged in when you sign in.
         </p>
         {mode === "forgot" && <ForgotForm onDone={() => setMode("login")} />}
-        {mode === "reset" && <ResetForm token={resetToken} onDone={() => setMode("login")} />}
         {(mode === "login" || mode === "register") && providers.length > 0 && (
           <>
             <div className="socialrow">
@@ -171,6 +160,28 @@ export function AuthView({ onAuthed, onBack }: AuthViewProps) {
             </button>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface ResetPasswordViewProps {
+  token: string | null;
+  onBack: () => void;
+  onDone: () => void;
+}
+
+/** Dedicated reset screen: email links never fall through to sign-in UI. */
+export function ResetPasswordView({ token, onBack, onDone }: ResetPasswordViewProps) {
+  return (
+    <div className="wrap">
+      <button className="back" onClick={onBack}>
+        ← BACK TO COURSE
+      </button>
+      <div className="authcard">
+        <div className="eyebrow">PASSWORD RESET</div>
+        <h2 className="authttl">Set a new password</h2>
+        <ResetForm token={token} onDone={onDone} />
       </div>
     </div>
   );

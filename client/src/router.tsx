@@ -1,6 +1,6 @@
 /* URL routing: every view is deep-linkable and the back button works.
    The shell (App) is the root layout; pages render into its outlet. */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   createRootRoute,
   createRoute,
@@ -14,7 +14,7 @@ import { LearnPage } from "./pages/learn";
 import { DashboardPage } from "./pages/dashboard";
 import { TrackPage } from "./pages/track";
 import { ModulePage } from "./pages/module";
-import { AuthView } from "./components/auth";
+import { AuthView, ResetPasswordView } from "./components/auth";
 import { AccountView } from "./components/account";
 import { AdminView } from "./components/admin";
 import { ReviewView } from "./components/review";
@@ -23,12 +23,32 @@ import { ExamView } from "./components/exam";
 import { getToken } from "./lib/api";
 import { TRACKS } from "./curriculum/tracks";
 import { byId } from "./lib/stats";
+import { resetTokenFromHash } from "./lib/auth-links";
 
 /* ---------- thin page wrappers around existing views ---------- */
 function AuthPage() {
   const { onAuthed, go, user } = useApp();
   if (user) return <Navigate to="/dashboard" replace />;
   return <AuthView onAuthed={onAuthed} onBack={() => go({ v: "home" })} />;
+}
+
+function ResetPasswordPage() {
+  const { go } = useApp();
+  const [resetToken] = useState(() => resetTokenFromHash(window.location.hash));
+
+  useEffect(() => {
+    if (window.location.hash.startsWith("#reset=")) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
+
+  return (
+    <ResetPasswordView
+      token={resetToken}
+      onBack={() => go({ v: "home" })}
+      onDone={() => go({ v: "auth" })}
+    />
+  );
 }
 
 function AccountPage() {
@@ -118,6 +138,11 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/glossary", component: GlossaryPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/review", component: ReviewPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/auth", component: AuthPage }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/reset-password",
+    component: ResetPasswordPage,
+  }),
   createRoute({ getParentRoute: () => rootRoute, path: "/account", component: AccountPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/admin", component: AdminPage }),
 ];
