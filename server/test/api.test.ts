@@ -586,9 +586,9 @@ describe("admin user management", () => {
     const listed = (
       await api<AdminUsersResponse>("GET", "/api/admin/users?q=promoteme", { token: adminToken })
     ).json.users;
-    const before = listed[0];
-    assert.ok(before, "seeded user should appear in the list");
-    assert.equal(before.role, "user");
+    const subject = listed[0];
+    assert.ok(subject, "seeded user should appear in the list");
+    assert.equal(subject.role, "user");
 
     const promoted = await api<AdminUserResponse>("PATCH", "/api/admin/users/" + id, {
       token: adminToken,
