@@ -6,7 +6,14 @@ describe("password-reset email links", () => {
 
   it("routes the legacy email URL fragment to the dedicated password-reset page", () => {
     expect(authFragmentDestination(sampleHash)).toBe("/reset-password");
+    expect(authFragmentDestination(sampleHash.slice(1))).toBe("/reset-password");
     expect(resetTokenFromHash(sampleHash)).toBe("i2ksEZsMCx7MWFCGeJmveDzxEIKxgzoSVynh29LXRfU");
+  });
+
+  it("extracts the token when tracking data trails the fragment", () => {
+    expect(resetTokenFromHash(`${sampleHash}&x=1`)).toBe(
+      "i2ksEZsMCx7MWFCGeJmveDzxEIKxgzoSVynh29LXRfU"
+    );
   });
 
   it("keeps OAuth errors on the sign-in page", () => {

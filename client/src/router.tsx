@@ -6,6 +6,7 @@ import {
   createRoute,
   createRouter,
   Navigate,
+  redirect,
   useParams,
 } from "@tanstack/react-router";
 import App, { useApp } from "./App";
@@ -23,7 +24,7 @@ import { ExamView } from "./components/exam";
 import { getToken } from "./lib/api";
 import { TRACKS } from "./curriculum/tracks";
 import { byId } from "./lib/stats";
-import { resetTokenFromHash } from "./lib/auth-links";
+import { authFragmentDestination, resetTokenFromHash } from "./lib/auth-links";
 
 /* ---------- thin page wrappers around existing views ---------- */
 function AuthPage() {
@@ -33,11 +34,13 @@ function AuthPage() {
 }
 
 function ResetPasswordPage() {
-  const { go } = useApp();
-  const [resetToken] = useState(() => resetTokenFromHash(window.location.hash));
+  const { go, clearSession } = useApp();
+  const [resetToken] = useState(() =>
+    typeof window === "undefined" ? null : resetTokenFromHash(window.location.hash)
+  );
 
   useEffect(() => {
-    if (window.location.hash.startsWith("#reset=")) {
+    if (typeof window !== "undefined" && window.location.hash.startsWith("#reset=")) {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
   }, []);
@@ -46,7 +49,10 @@ function ResetPasswordPage() {
     <ResetPasswordView
       token={resetToken}
       onBack={() => go({ v: "home" })}
-      onDone={() => go({ v: "auth" })}
+      onDone={() => {
+        clearSession();
+        go({ v: "auth" });
+      }}
     />
   );
 }
@@ -128,7 +134,17 @@ function NotFound() {
 const rootRoute = createRootRoute({ component: App, notFoundComponent: NotFound });
 
 const routes = [
-  createRoute({ getParentRoute: () => rootRoute, path: "/", component: LandingPage }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/",
+    beforeLoad: ({ location }) => {
+      const fragmentDestination = authFragmentDestination(location.hash);
+      if (fragmentDestination) {
+        throw redirect({ to: fragmentDestination, hash: true, replace: true });
+      }
+    },
+    component: LandingPage,
+  }),
   createRoute({ getParentRoute: () => rootRoute, path: "/learn", component: LearnPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/dashboard", component: DashboardPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/tracks/$trackId", component: TrackPage }),

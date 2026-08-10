@@ -181,7 +181,18 @@ export function ResetPasswordView({ token, onBack, onDone }: ResetPasswordViewPr
       <div className="authcard">
         <div className="eyebrow">PASSWORD RESET</div>
         <h2 className="authttl">Set a new password</h2>
-        <ResetForm token={token} onDone={onDone} />
+        {token ? (
+          <ResetForm token={token} onDone={onDone} />
+        ) : (
+          <>
+            <div className="verdict badv" role="alert">
+              ✗ Reset link is invalid or expired — request a new one
+            </div>
+            <button className="btn" onClick={onDone}>
+              GO TO SIGN IN
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

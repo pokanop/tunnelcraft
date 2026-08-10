@@ -23,7 +23,6 @@ import type { Progress } from "./lib/progress";
 import { useTheme } from "./lib/theme";
 import { routeToPath } from "./lib/nav";
 import type { Route } from "./lib/nav";
-import { authFragmentDestination } from "./lib/auth-links";
 import { grandTotals } from "./lib/stats";
 import type { SearchResult } from "./lib/search";
 
@@ -39,6 +38,7 @@ export interface AppState {
   sync: SyncState;
   go: (r: Route) => void;
   onAuthed: (u: PublicUser) => Promise<void>;
+  clearSession: () => void;
   signOut: () => void;
   onDeleted: () => void;
   reviewAnswer: (key: string, correct: boolean) => void;
@@ -72,8 +72,6 @@ export default function App() {
 
   /* boot: local first, then session restore + server merge */
   useEffect(() => {
-    const fragmentDestination = authFragmentDestination(window.location.hash);
-    if (fragmentDestination) navigate({ to: fragmentDestination, hash: true, replace: true });
     const local = loadLocal();
     setProg(local);
     if (!getToken()) return;
@@ -163,11 +161,14 @@ export default function App() {
     }
   };
 
-  const signOut = () => {
-    api.logout().catch(() => {}); // best-effort server revoke; token cleared regardless
+  const clearSession = () => {
     setToken(null);
     setUser(null);
     setSync("local");
+  };
+  const signOut = () => {
+    api.logout().catch(() => {}); // best-effort server revoke; token cleared regardless
+    clearSession();
     go({ v: "landing" });
   };
   const onDeleted = () => {
@@ -213,6 +214,7 @@ export default function App() {
     sync,
     go,
     onAuthed,
+    clearSession,
     signOut,
     onDeleted,
     reviewAnswer,

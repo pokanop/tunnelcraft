@@ -13,3 +13,5 @@ server/data/
 .idea/
 labs/capstone/target/
 npm-debug.log*
+playwright-report/
+test-results/
