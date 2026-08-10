@@ -16,6 +16,7 @@ import { TrackPage } from "./pages/track";
 import { ModulePage } from "./pages/module";
 import { AuthView } from "./components/auth";
 import { AccountView } from "./components/account";
+import { AdminView } from "./components/admin";
 import { ReviewView } from "./components/review";
 import { GlossaryView } from "./components/glossary";
 import { ExamView } from "./components/exam";
@@ -42,6 +43,28 @@ function AccountPage() {
       onBack={() => go({ v: "home" })}
     />
   );
+}
+
+function AdminPage() {
+  const { user, go } = useApp();
+  if (!getToken()) return <Navigate to="/auth" replace />;
+  // Cosmetic gate only — the API enforces the role on every call, so a non-admin
+  // who deep-links here sees the 403 state and nothing works.
+  if (!user) return null; // token present, /me in flight
+  if (user.role !== "admin")
+    return (
+      <div className="wrap">
+        <div className="authcard admincard">
+          <div className="eyebrow">403 // ADMIN ACCESS REQUIRED</div>
+          <h2 className="authttl">Not available</h2>
+          <p className="authsub">Your account does not have admin privileges.</p>
+          <button className="btn" onClick={() => go({ v: "home" })}>
+            BACK TO COURSE
+          </button>
+        </div>
+      </div>
+    );
+  return <AdminView me={user} onBack={() => go({ v: "home" })} />;
 }
 
 function ReviewPage() {
@@ -96,6 +119,7 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/review", component: ReviewPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/auth", component: AuthPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/account", component: AccountPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/admin", component: AdminPage }),
 ];
 
 const routeTree = rootRoute.addChildren(routes);

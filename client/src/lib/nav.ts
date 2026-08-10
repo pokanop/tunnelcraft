@@ -8,6 +8,7 @@ export type Route =
   | { v: "track"; id: string }
   | { v: "auth" }
   | { v: "account" }
+  | { v: "admin" }
   | { v: "review" }
   | { v: "glossary" }
   | { v: "exam"; track: string }
@@ -27,6 +28,8 @@ export function routeToPath(r: Route): string {
       return "/auth";
     case "account":
       return "/account";
+    case "admin":
+      return "/admin";
     case "review":
       return "/review";
     case "glossary":

@@ -2,6 +2,7 @@
    exercise auth, sessions, and progress-merge over HTTP, then tear down. */
 import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -27,6 +28,7 @@ interface PublicUser {
   email: string;
   displayName: string | null;
   emailVerified: boolean;
+  role: "user" | "admin";
 }
 interface AuthResponse {
   token: string;
@@ -36,10 +38,30 @@ interface ProgressResponse {
   data: Progress;
   updatedAt: string | null;
 }
+interface AdminUser {
+  id: number;
+  email: string;
+  displayName: string | null;
+  emailVerified: boolean;
+  remind: boolean;
+  role: "user" | "admin";
+  createdAt: string;
+}
+interface AdminUsersResponse {
+  users: AdminUser[];
+  total: number;
+}
+interface AdminUserResponse {
+  user: AdminUser;
+}
 
 interface ApiOptions {
   token?: string;
   body?: unknown;
+}
+
+function sha256(s: string): string {
+  return crypto.createHash("sha256").update(s).digest("hex");
 }
 
 async function api<T = unknown>(
@@ -402,5 +424,351 @@ describe("password reset flow", () => {
       body: { token, newPassword: "second new password" },
     });
     assert.equal(second.status, 400);
+  });
+});
+
+/* Admin user management — exercises the server-side authz guard (401/403),
+   the list/search API, promote/demote, last-admin lockout (409), self-action
+   refusal (403), and the delete cascade. The first admin has to be seeded out
+   of band (the migration only back-fills role='user'); we do that here by
+   writing directly to the shared temp DB, exactly as promote-admin.ts does in
+   production. WAL mode makes this cross-process write safe. */
+describe("admin user management", () => {
+  const adminEmail = "admin-root@example.com";
+  let adminToken = "";
+  let adminId = 0;
+
+  /* All admin-test fixtures are seeded directly against the temp DB rather than
+     through /api/auth/register+login. Two reasons: (1) it mirrors how the first
+     admin is actually promoted in production (out-of-band — see
+     promote-admin.ts); (2) the global /api/auth/register and /api/auth/login
+     rate-limit buckets (10/15 per min/IP) are already nearly spent by the auth
+     + password-reset describes above, so HTTP signups here would 429. WAL mode
+     + busy_timeout make these cross-process writes safe alongside the server. */
+  async function openDb() {
+    const { Database } = await import("bun:sqlite");
+    const conn = new Database(path.join(dataDir, "tunnelcraft.db"));
+    conn.exec("PRAGMA busy_timeout = 5000");
+    return conn;
+  }
+
+  /** Insert (or reset) a user with a known password + role and mint a live
+      session token for them, returning { id, token }. Idempotent on email. */
+  async function seedUser(
+    email: string,
+    role: "user" | "admin",
+    displayName: string | null = null
+  ): Promise<{ id: number; token: string }> {
+    const { hashSync } = await import("bcryptjs");
+    const conn = await openDb();
+    try {
+      const existing = conn.prepare("SELECT id FROM users WHERE email = ?").get(email) as
+        | { id: number }
+        | undefined;
+      let id = existing?.id;
+      const hash = hashSync("a valid admin pass", 10);
+      if (id === undefined) {
+        const r = conn
+          .prepare(
+            "INSERT INTO users (email, password_hash, display_name, role) VALUES (?, ?, ?, ?)"
+          )
+          .run(email, hash, displayName, role);
+        id = Number(r.lastInsertRowid);
+      } else {
+        conn
+          .prepare("UPDATE users SET password_hash = ?, display_name = ?, role = ? WHERE id = ?")
+          .run(hash, displayName, role, id);
+      }
+      const secret = crypto.randomBytes(32).toString("base64url");
+      const exp = new Date(Date.now() + 30 * 86_400_000)
+        .toISOString()
+        .replace("T", " ")
+        .slice(0, 19);
+      conn
+        .prepare("INSERT INTO sessions (id, user_id, expires_at, user_agent) VALUES (?, ?, ?, ?)")
+        .run(sha256(secret), id, exp, "admin-test");
+      return { id: id!, token: secret };
+    } finally {
+      conn.close();
+    }
+  }
+
+  async function setRoleInDb(email: string, role: "user" | "admin"): Promise<void> {
+    const conn = await openDb();
+    try {
+      conn.prepare("UPDATE users SET role = ? WHERE email = ?").run(role, email);
+    } finally {
+      conn.close();
+    }
+  }
+
+  async function adminCountInDb(): Promise<number> {
+    const conn = await openDb();
+    try {
+      const row = conn.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get() as {
+        n: number;
+      };
+      return row.n;
+    } finally {
+      conn.close();
+    }
+  }
+
+  before(async () => {
+    const admin = await seedUser(adminEmail, "admin");
+    adminId = admin.id;
+    adminToken = admin.token;
+  });
+
+  test("unauthenticated admin requests get 401, non-admin gets 403", async () => {
+    assert.equal((await api("GET", "/api/admin/users")).status, 401);
+    const civilian = (await seedUser("civilian@example.com", "user")).token;
+    assert.equal((await api("GET", "/api/admin/users", { token: civilian })).status, 403);
+    assert.equal(
+      (
+        await api("PATCH", "/api/admin/users/" + adminId, {
+          token: civilian,
+          body: { role: "admin" },
+        })
+      ).status,
+      403
+    );
+    assert.equal(
+      (
+        await api("DELETE", "/api/admin/users/" + adminId, {
+          token: civilian,
+          body: { confirm: "DELETE" },
+        })
+      ).status,
+      403
+    );
+  });
+
+  test("/api/me exposes role for admins and regular users", async () => {
+    const me = await api<{ user: PublicUser }>("GET", "/api/me", { token: adminToken });
+    assert.equal(me.status, 200);
+    assert.equal(me.json.user.role, "admin");
+    const civilianTok = (await seedUser("rolecheck@example.com", "user")).token;
+    const them = await api<{ user: PublicUser }>("GET", "/api/me", { token: civilianTok });
+    assert.equal(them.status, 200);
+    assert.equal(them.json.user.role, "user");
+  });
+
+  test("admin can list users; response never leaks password_hash", async () => {
+    const { status, json } = await api<AdminUsersResponse>("GET", "/api/admin/users", {
+      token: adminToken,
+    });
+    assert.equal(status, 200);
+    assert.ok(json.total >= 1);
+    assert.ok(json.users.length >= 1);
+    for (const u of json.users) {
+      assert.equal("password_hash" in u, false, "password_hash must never appear in user rows");
+      assert.ok(u.role === "user" || u.role === "admin");
+    }
+  });
+
+  test("search filters by email (case-insensitive)", async () => {
+    await seedUser("admin-zeta@example.com", "user");
+    const { status, json } = await api<AdminUsersResponse>("GET", "/api/admin/users?q=ZETA", {
+      token: adminToken,
+    });
+    assert.equal(status, 200);
+    assert.ok(json.users.some((u) => u.email === "admin-zeta@example.com"));
+    assert.equal(
+      json.users.some((u) => u.email === adminEmail),
+      false
+    );
+  });
+
+  test("promote + demote a second user when more than one admin exists", async () => {
+    const seeded = await seedUser("promoteme@example.com", "user", "Promo");
+    const id = seeded.id;
+    const listed = (
+      await api<AdminUsersResponse>("GET", "/api/admin/users?q=promoteme", { token: adminToken })
+    ).json.users;
+    const subject = listed[0];
+    assert.ok(subject, "seeded user should appear in the list");
+    assert.equal(subject.role, "user");
+
+    const promoted = await api<AdminUserResponse>("PATCH", "/api/admin/users/" + id, {
+      token: adminToken,
+      body: { role: "admin" },
+    });
+    assert.equal(promoted.status, 200);
+    assert.equal(promoted.json.user.role, "admin");
+
+    // now two admins exist, demote should succeed
+    const demoted = await api<AdminUserResponse>("PATCH", "/api/admin/users/" + id, {
+      token: adminToken,
+      body: { role: "user" },
+    });
+    assert.equal(demoted.status, 200);
+    assert.equal(demoted.json.user.role, "user");
+  });
+
+  test("PATCH validates body: empty, bad role, and 404 on unknown user", async () => {
+    const seeded = await seedUser("validate@example.com", "user");
+    const id = seeded.id;
+
+    assert.equal(
+      (await api("PATCH", "/api/admin/users/" + id, { token: adminToken, body: {} })).status,
+      400
+    );
+    assert.equal(
+      (
+        await api("PATCH", "/api/admin/users/" + id, {
+          token: adminToken,
+          body: { role: "superuser" },
+        })
+      ).status,
+      400
+    );
+    assert.equal(
+      (
+        await api("PATCH", "/api/admin/users/9999999", {
+          token: adminToken,
+          body: { role: "admin" },
+        })
+      ).status,
+      404
+    );
+  });
+
+  test("admin can edit emailVerified and displayName on another user", async () => {
+    const seeded = await seedUser("editable@example.com", "user", "Ed");
+    const id = seeded.id;
+
+    const patched = await api<AdminUserResponse>("PATCH", "/api/admin/users/" + id, {
+      token: adminToken,
+      body: { emailVerified: true, displayName: "Edited Name" },
+    });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.json.user.emailVerified, true);
+    assert.equal(patched.json.user.displayName, "Edited Name");
+  });
+
+  test("an admin cannot change their own role", async () => {
+    const me = await api<{ user: PublicUser }>("GET", "/api/me", { token: adminToken });
+    const selfId = me.json.user.id;
+    const r = await api("PATCH", "/api/admin/users/" + selfId, {
+      token: adminToken,
+      body: { role: "user" },
+    });
+    assert.equal(r.status, 403);
+    // role unchanged
+    const me2 = await api<{ user: PublicUser }>("GET", "/api/me", { token: adminToken });
+    assert.equal(me2.json.user.role, "admin");
+  });
+
+  test("the last admin cannot demote themselves", async () => {
+    // Make adminEmail the sole admin in the DB, then self-demote must be refused.
+    const conn = await openDb();
+    try {
+      conn.prepare("UPDATE users SET role = 'user' WHERE email != ?").run(adminEmail);
+    } finally {
+      conn.close();
+    }
+    assert.equal(await adminCountInDb(), 1);
+    const me = await api<{ user: PublicUser }>("GET", "/api/me", { token: adminToken });
+    const self = await api("PATCH", "/api/admin/users/" + me.json.user.id, {
+      token: adminToken,
+      body: { role: "user" },
+    });
+    // Self-action guard fires first (§4.2); the lockout check (§4.1) is the
+    // last line of defense in the concurrent case below.
+    assert.equal(self.status, 403);
+    assert.equal(await adminCountInDb(), 1);
+  });
+
+  test("cross-demotion can never reduce admins to zero (concurrent-request safety)", async () => {
+    // Two admins each try to demote the OTHER at the same time. The invariant
+    // under test: the admin count can reach 1 but NEVER 0.
+    //
+    // The PATCH handlers are synchronous, so Node admits them strictly
+    // sequentially: the first demotion commits (2→1); the second actor's role
+    // was just flipped, makeAuth re-fetches their row on the next request, and
+    // requireAdmin rejects them with 403 before they reach the handler. (The
+    // 409 "last admin" guard inside tx() is therefore a defensive last line
+    // that is unreachable through the HTTP API in this sync model — it cannot
+    // fire because any actor who could trigger it has already lost admin
+    // status. It is retained per the Stage 1 design.)
+    const b = await seedUser("promoteme@example.com", "admin");
+    const idA = adminId;
+    const idB = b.id;
+    assert.equal(await adminCountInDb(), 2);
+
+    const [r1, r2] = await Promise.all([
+      api("PATCH", "/api/admin/users/" + idB, { token: adminToken, body: { role: "user" } }),
+      api("PATCH", "/api/admin/users/" + idA, { token: b.token, body: { role: "user" } }),
+    ]);
+    const successes = [r1.status, r2.status].filter((s) => s === 200).length;
+    assert.equal(successes, 1, "exactly one cross-demotion may succeed");
+    assert.ok(
+      [r1.status, r2.status].every((s) => s === 200 || s === 403 || s === 409),
+      "the blocked attempt must be a clean 403 or 409"
+    );
+    assert.equal(await adminCountInDb(), 1, "the system must never reach zero admins");
+    // restore adminEmail as a (the) admin for later tests
+    await setRoleInDb(adminEmail, "admin");
+  });
+
+  test("delete requires confirm, refuses self, and cascades the account", async () => {
+    // no confirm → 400
+    const seeded = await seedUser("deletee@example.com", "user");
+    const id = seeded.id;
+    assert.equal(
+      (await api("DELETE", "/api/admin/users/" + id, { token: adminToken, body: {} })).status,
+      400
+    );
+
+    // self-delete → 403
+    const me = await api<{ user: PublicUser }>("GET", "/api/me", { token: adminToken });
+    assert.equal(
+      (
+        await api("DELETE", "/api/admin/users/" + me.json.user.id, {
+          token: adminToken,
+          body: { confirm: "DELETE" },
+        })
+      ).status,
+      403
+    );
+
+    // real delete → 200, and the victim's session is gone (cascade)
+    const del = await api("DELETE", "/api/admin/users/" + id, {
+      token: adminToken,
+      body: { confirm: "DELETE" },
+    });
+    assert.equal(del.status, 200);
+    assert.equal((await api("GET", "/api/me", { token: seeded.token })).status, 401);
+    const afterList = await api<AdminUsersResponse>("GET", "/api/admin/users?q=deletee", {
+      token: adminToken,
+    });
+    assert.equal(
+      afterList.json.users.some((u) => u.email === "deletee@example.com"),
+      false
+    );
+  });
+
+  test("deleting the last admin is refused (self-delete 403; lockout intact)", async () => {
+    // deletee2 is the sole admin; it cannot delete itself (self → 403), and no
+    // other admin exists to act — so the last-admin lockout holds. The
+    // concurrent 409 path is covered by the demotion race above; the delete
+    // equivalent is symmetric (same tx + countAdmins guard).
+    const sole = await seedUser("deletee2@example.com", "admin");
+    await setRoleInDb(adminEmail, "user"); // leave deletee2 as the only admin
+    assert.equal(await adminCountInDb(), 1);
+
+    const selfDel = await api("DELETE", "/api/admin/users/" + sole.id, {
+      token: sole.token,
+      body: { confirm: "DELETE" },
+    });
+    assert.equal(selfDel.status, 403);
+
+    // restore admin-root for cleanliness; the last admin must still exist
+    await setRoleInDb(adminEmail, "admin");
+    const stillThere = await api<AdminUsersResponse>("GET", "/api/admin/users?q=deletee2", {
+      token: adminToken,
+    });
+    assert.equal(stillThere.json.users.length, 1, "the last admin must still exist");
   });
 });

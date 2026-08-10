@@ -58,6 +58,17 @@ export function makeAuth(userById: Query<[id: number | bigint], PublicUserRow>):
   };
 }
 
+/* Authorization gate: layered strictly AFTER `auth`. `auth` already owns the
+   401 ladder (no/bad/expired token, account gone); this middleware answers only
+   the authenticated-but-not-authorized case, so it always returns 403.
+   Register every admin endpoint as `auth, requireAdmin, <handler>`. */
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  const user = req.user;
+  if (!user || user.role !== "admin")
+    return res.status(403).json({ error: "Admin access required" });
+  next();
+};
+
 /* Email-verification tokens: hash-at-rest, 24-hour TTL, single use, one live per user */
 export function createVerifyToken(userId: number | bigint): string {
   q.deleteUserVerifies.run(userId);

@@ -9,6 +9,9 @@ import { fileURLToPath } from "node:url";
 import type { Logger } from "pino";
 
 /* ---------- row types ---------- */
+/** Role stored on `users.role`; the CHECK constraint forbids any other value. */
+export type UserRole = "user" | "admin";
+
 export interface UserRow {
   id: number;
   email: string;
@@ -18,14 +21,28 @@ export interface UserRow {
   email_verified: number;
   remind: number;
   reminded_day: string | null;
+  role: UserRole;
 }
-/** Projection returned by `q.userById` (no password hash, no created_at). */
+/** Projection returned by `q.userById` (no password hash, no created_at).
+    Backs `req.user` and `/api/me`, so `role` rides along to every authed
+    request and to `requireAdmin` without an extra query. */
 export interface PublicUserRow {
   id: number;
   email: string;
   display_name: string | null;
   email_verified: number;
   remind: number;
+  role: UserRole;
+}
+/** Admin-facing projection: adds `createdAt` and never includes `password_hash`. */
+export interface AdminUserRow {
+  id: number;
+  email: string;
+  displayName: string | null;
+  emailVerified: number;
+  remind: number;
+  role: UserRole;
+  createdAt: string;
 }
 /** Projection for the reminder sweep: opted-in users + their progress blob. */
 export interface RemindRow {
@@ -93,6 +110,10 @@ export const db: SqlDb =
     : new (await import("node:sqlite")).DatabaseSync(dbPath);
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
+// Wait (up to 5s) for a contended write lock instead of failing SQLITE_BUSY.
+// WAL permits one writer at a time; without this, two concurrent `tx()`s (e.g.
+// the admin last-admin check) would 500 instead of serializing.
+db.exec("PRAGMA busy_timeout = 5000");
 
 /* ---------- versioned migrations ----------
    PRAGMA user_version tracks the applied schema version. Each migration runs
@@ -166,6 +187,15 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE users ADD COLUMN remind INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE users ADD COLUMN reminded_day TEXT;
     `,
+  },
+  {
+    version: 4,
+    name: "user roles",
+    sql: `
+      ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin'));
+    `,
+    // No `post` hook: ALTER … DEFAULT back-fills every existing row to 'user',
+    // so everyone is non-admin until promoted out of band (see promote-admin.ts).
   },
 ];
 
@@ -335,7 +365,30 @@ export const q = {
   ),
   userByEmail: query<[email: string], UserRow>("SELECT * FROM users WHERE email = ?"),
   userById: query<[id: UserId], PublicUserRow>(
-    "SELECT id, email, display_name, email_verified, remind FROM users WHERE id = ?"
+    "SELECT id, email, display_name, email_verified, remind, role FROM users WHERE id = ?"
+  ),
+  adminUserById: query<[id: UserId], AdminUserRow>(
+    `SELECT id, email, display_name AS displayName, email_verified AS emailVerified,
+            remind, role, created_at AS createdAt
+     FROM users WHERE id = ?`
+  ),
+  listUsers: query<[like: string, like: string, limit: number, offset: number], AdminUserRow>(
+    `SELECT id, email, display_name AS displayName, email_verified AS emailVerified,
+            remind, role, created_at AS createdAt
+     FROM users
+     WHERE LOWER(email) LIKE ? OR LOWER(COALESCE(display_name, '')) LIKE ?
+     ORDER BY created_at DESC LIMIT ? OFFSET ?`
+  ),
+  countUsers: query<[like: string, like: string], { n: number }>(
+    "SELECT COUNT(*) AS n FROM users WHERE LOWER(email) LIKE ? OR LOWER(COALESCE(display_name, '')) LIKE ?"
+  ),
+  countAdmins: query<[], { n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'"),
+  setUserRole: query<[role: UserRole, userId: UserId]>("UPDATE users SET role = ? WHERE id = ?"),
+  setUserVerified: query<[emailVerified: number, userId: UserId]>(
+    "UPDATE users SET email_verified = ? WHERE id = ?"
+  ),
+  setUserDisplayName: query<[displayName: string | null, userId: UserId]>(
+    "UPDATE users SET display_name = ? WHERE id = ?"
   ),
   setRemind: query<[remind: number, userId: UserId]>("UPDATE users SET remind = ? WHERE id = ?"),
   setRemindedDay: query<[day: string, userId: UserId]>(

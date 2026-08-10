@@ -23,6 +23,8 @@ export class ApiError extends Error {
 }
 
 /* ---------- response shapes ---------- */
+export type UserRole = "user" | "admin";
+
 export interface PublicUser {
   id: number;
   email: string;
@@ -30,6 +32,8 @@ export interface PublicUser {
   emailVerified: boolean;
   /** Opted in to study-reminder mail. */
   remind?: boolean;
+  /** Server-assigned role; the only thing the client is allowed to gate UX on. */
+  role: UserRole;
 }
 export interface AuthResponse {
   token: string;
@@ -58,6 +62,29 @@ export interface MessageResponse {
 export interface ProgressResponse {
   data: Progress | null;
   updatedAt: string | null;
+}
+export interface AdminUser {
+  id: number;
+  email: string;
+  displayName: string | null;
+  emailVerified: boolean;
+  remind: boolean;
+  role: UserRole;
+  createdAt: string;
+}
+export interface AdminUsersResponse {
+  users: AdminUser[];
+  total: number;
+}
+export interface AdminUserResponse {
+  user: AdminUser;
+}
+
+/** Whitelist for PATCH /api/admin/users/:id — matches the server. */
+export interface AdminUserPatch {
+  role?: UserRole;
+  emailVerified?: boolean;
+  displayName?: string | null;
 }
 
 async function req<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
@@ -119,6 +146,18 @@ export const api = {
     req<{ ok: boolean; remind: boolean }>("/account/reminders", { method: "POST", body: { on } }),
   getProgress: () => req<ProgressResponse>("/progress"),
   putProgress: (data: Progress) => req<unknown>("/progress", { method: "PUT", body: { data } }),
+  adminListUsers: (q?: string, limit?: number, offset?: number) => {
+    const qs = new URLSearchParams();
+    if (q) qs.set("q", q);
+    if (typeof limit === "number") qs.set("limit", String(limit));
+    if (typeof offset === "number") qs.set("offset", String(offset));
+    const tail = qs.toString();
+    return req<AdminUsersResponse>("/admin/users" + (tail ? "?" + tail : ""));
+  },
+  adminUpdateUser: (id: number, patch: AdminUserPatch) =>
+    req<AdminUserResponse>("/admin/users/" + id, { method: "PATCH", body: patch }),
+  adminDeleteUser: (id: number) =>
+    req<{ ok: true }>("/admin/users/" + id, { method: "DELETE", body: { confirm: "DELETE" } }),
 };
 
 /* ---------- progress model helpers ---------- */

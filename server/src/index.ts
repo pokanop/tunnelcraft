@@ -5,6 +5,7 @@ import { compareSync, hashSync } from "bcryptjs";
 import {
   createSession,
   makeAuth,
+  requireAdmin,
   createResetToken,
   consumeResetToken,
   createVerifyToken,
@@ -15,7 +16,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { q, dbHealthy, closeDb, tx, backupTo, schemaVersion } from "./db";
-import type { PublicUserRow } from "./db";
+import type { AdminUserRow, PublicUserRow, UserRole } from "./db";
 import { log, requestLogger } from "./logger";
 import { describeDevice } from "./devices";
 import { oauthProviders, beginOAuth, finishOAuth } from "./oauth";
@@ -82,9 +83,48 @@ function publicUser(u: PublicUserRow) {
     displayName: u.display_name || null,
     emailVerified: !!u.email_verified,
     remind: !!u.remind,
+    role: u.role,
+  };
+}
+
+/** AdminUserRow → API shape: coerce the INTEGER 0/1 flags to booleans and keep
+    the rest (id/email/displayName/role/createdAt) as-is. Mirrors publicUser(). */
+function adminUserOut(u: AdminUserRow) {
+  return {
+    id: u.id,
+    email: u.email,
+    displayName: u.displayName,
+    emailVerified: !!u.emailVerified,
+    remind: !!u.remind,
+    role: u.role,
+    createdAt: u.createdAt,
   };
 }
 const auth = makeAuth(q.userById);
+
+/* ---------- admin authorization helpers ----------
+   The admin endpoints are registered as `auth, requireAdmin, <handler>`. `auth`
+   owns the 401 ladder; `requireAdmin` owns the 403. Handlers throw `HttpError`
+   for not-found / lockout conditions inside `tx()` and convert it back to a JSON
+   response at the call site. */
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "HttpError";
+    this.status = status;
+  }
+}
+
+/** Read `:id` as a positive integer, or `null` if it isn't one. Express types
+    a single route param as `string | string[]` (ParamsDictionary); a repeated
+    param would surface as an array, in which case there is no single id. */
+function pathId(raw: string | string[] | undefined): number | null {
+  const s = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof s !== "string") return null;
+  const n = Number(s);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 /* ---------- backup (admin) ----------
    Online, consistent snapshot via SQLite's backup API — safe while serving traffic.
@@ -120,7 +160,130 @@ app.post("/api/admin/backup", rateLimit(4, 60_000), async (req, res) => {
   }
 });
 
-/* ---------- health ---------- */
+/* ---------- admin: user management ----------
+   Session+role-guarded user admin (machine-to-machine /api/admin/backup above
+   stays env-guarded). Every mutation audit-logs one structured line via req.log. */
+
+/** Whitelisted, validated fields a PATCH body may carry. `undefined` = unset. */
+interface UserPatch {
+  role?: UserRole;
+  emailVerified?: boolean;
+  displayName?: string | null;
+}
+
+function parsePatch(body: Record<string, unknown>): { patch: UserPatch; error?: string } {
+  const patch: UserPatch = {};
+  if ("role" in body) {
+    if (body.role !== "user" && body.role !== "admin")
+      return { patch, error: "role must be 'user' or 'admin'" };
+    patch.role = body.role;
+  }
+  if ("emailVerified" in body) {
+    if (typeof body.emailVerified !== "boolean")
+      return { patch, error: "emailVerified must be true or false" };
+    patch.emailVerified = body.emailVerified;
+  }
+  if ("displayName" in body) {
+    const v = body.displayName;
+    if (v !== null && typeof v !== "string")
+      return { patch, error: "displayName must be a string or null" };
+    patch.displayName = v === null ? null : v.trim().slice(0, 60) || null;
+  }
+  return { patch };
+}
+
+app.get("/api/admin/users", rateLimit(30, 60_000), auth, requireAdmin, (req, res) => {
+  const qstr = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const like = "%" + qstr.toLowerCase() + "%";
+  let limit = Number(req.query.limit);
+  if (!Number.isInteger(limit) || limit < 0) limit = 50;
+  if (limit > 100) limit = 100;
+  let offset = Number(req.query.offset);
+  if (!Number.isInteger(offset) || offset < 0) offset = 0;
+  const users = q.listUsers.all(like, like, limit, offset);
+  const counted = q.countUsers.get(like, like);
+  res.json({ users: users.map(adminUserOut), total: counted?.n ?? 0 });
+});
+
+app.patch("/api/admin/users/:id", rateLimit(30, 60_000), auth, requireAdmin, (req, res) => {
+  const { user } = authed(req);
+  const id = pathId(req.params.id);
+  if (id === null) return res.status(404).json({ error: "User not found" });
+  const { patch, error: parseError } = parsePatch(bodyOf(req));
+  if (parseError) return res.status(400).json({ error: parseError });
+  if (
+    patch.role === undefined &&
+    patch.emailVerified === undefined &&
+    patch.displayName === undefined
+  )
+    return res.status(400).json({ error: "Send at least one of role, emailVerified, displayName" });
+  // Self role-change is a footgun (you'd lock yourself out of the panel).
+  if (patch.role !== undefined && id === user.id)
+    return res.status(403).json({ error: "You cannot change your own role" });
+  const logged: Record<string, unknown> = {};
+  try {
+    tx(() => {
+      const before = q.adminUserById.get(id);
+      if (!before) throw new HttpError(404, "User not found");
+      if (patch.role !== undefined && before.role === "admin" && patch.role === "user") {
+        const c = q.countAdmins.get();
+        if (!c || c.n <= 1) throw new HttpError(409, "Cannot remove the last admin");
+      }
+      if (patch.role !== undefined && patch.role !== before.role) {
+        logged.role = [before.role, patch.role];
+        q.setUserRole.run(patch.role, id);
+      }
+      if (patch.emailVerified !== undefined && patch.emailVerified !== !!before.emailVerified) {
+        logged.emailVerified = [!!before.emailVerified, patch.emailVerified];
+        q.setUserVerified.run(patch.emailVerified ? 1 : 0, id);
+      }
+      if (patch.displayName !== undefined && patch.displayName !== before.displayName) {
+        logged.displayName = [before.displayName, patch.displayName];
+        q.setUserDisplayName.run(patch.displayName, id);
+      }
+      req.log.info(
+        { actor: user.id, target: id, action: "patch_user", changes: logged },
+        "admin: patch user"
+      );
+    });
+  } catch (e) {
+    if (e instanceof HttpError) return res.status(e.status).json({ error: e.message });
+    throw e;
+  }
+  const after = q.adminUserById.get(id);
+  // after is present: the tx above would have thrown HttpError(404) otherwise.
+  res.json({ user: adminUserOut(after!) });
+});
+
+app.delete("/api/admin/users/:id", rateLimit(10, 60_000), auth, requireAdmin, (req, res) => {
+  const { user } = authed(req);
+  const id = pathId(req.params.id);
+  if (id === null) return res.status(404).json({ error: "User not found" });
+  const { confirm } = bodyOf(req);
+  if (confirm !== "DELETE")
+    return res.status(400).json({ error: 'Send confirm: "DELETE" to proceed' });
+  if (id === user.id)
+    return res.status(403).json({ error: "Use account settings to delete your own account" });
+  try {
+    tx(() => {
+      const before = q.adminUserById.get(id);
+      if (!before) throw new HttpError(404, "User not found");
+      if (before.role === "admin") {
+        const c = q.countAdmins.get();
+        if (!c || c.n <= 1) throw new HttpError(409, "Cannot remove the last admin");
+      }
+      q.deleteUser.run(id); // sessions, oauth links, progress cascade via FKs
+      req.log.info(
+        { actor: user.id, target: id, action: "delete_user", role: before.role },
+        "admin: delete user"
+      );
+    });
+  } catch (e) {
+    if (e instanceof HttpError) return res.status(e.status).json({ error: e.message });
+    throw e;
+  }
+  res.json({ ok: true });
+});
 const startedAt = Date.now();
 app.get("/api/health/live", (_req, res) => {
   res.json({ status: "ok", uptimeSec: Math.round((Date.now() - startedAt) / 1000) });
