@@ -49,6 +49,7 @@ function ResetPasswordPage() {
     <ResetPasswordView
       token={resetToken}
       onBack={() => go({ v: "home" })}
+      onInvalidLink={() => go({ v: "auth" })}
       onDone={() => {
         clearSession();
         go({ v: "auth" });

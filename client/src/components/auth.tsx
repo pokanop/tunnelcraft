@@ -169,10 +169,16 @@ interface ResetPasswordViewProps {
   token: string | null;
   onBack: () => void;
   onDone: () => void;
+  onInvalidLink: () => void;
 }
 
 /** Dedicated reset screen: email links never fall through to sign-in UI. */
-export function ResetPasswordView({ token, onBack, onDone }: ResetPasswordViewProps) {
+export function ResetPasswordView({
+  token,
+  onBack,
+  onDone,
+  onInvalidLink,
+}: ResetPasswordViewProps) {
   return (
     <div className="wrap">
       <button className="back" onClick={onBack}>
@@ -188,7 +194,7 @@ export function ResetPasswordView({ token, onBack, onDone }: ResetPasswordViewPr
             <div className="verdict badv" role="alert">
               ✗ Reset link is invalid or expired — request a new one
             </div>
-            <button className="btn" onClick={onDone}>
+            <button className="btn" onClick={onInvalidLink}>
               GO TO SIGN IN
             </button>
           </>
