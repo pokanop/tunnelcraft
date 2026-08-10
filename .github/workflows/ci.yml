@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   check:
     runs-on: [self-hosted, linux, x64]
@@ -41,14 +48,45 @@ jobs:
   publish:
     needs: [check, docker, capstone-labs]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
+    environment: production
     permissions:
       contents: read
       packages: write
     env:
       IMAGE: ghcr.io/pokanop/tunnelcraft
+      DEPLOY_ENABLED: ${{ vars.DOKPLOY_DEPLOY_ENABLED }}
     steps:
+      - name: Validate rollout configuration
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+        run: |
+          case "${DEPLOY_ENABLED:-false}" in
+            true) ;;
+            false|"")
+              echo "::notice::Dokploy rollout disabled; publishing only"
+              exit 0
+              ;;
+            *)
+              echo "::error::DOKPLOY_DEPLOY_ENABLED must be 'true' or 'false', got '${DEPLOY_ENABLED}'"
+              exit 1
+              ;;
+          esac
+
+          missing=""
+          for name in DOKPLOY_API_KEY DOKPLOY_APPLICATION_ID DOKPLOY_URL; do
+            if [ -z "${!name}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing required production environment secrets:${missing}"
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: docker/setup-qemu-action@v3
@@ -68,9 +106,8 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ github.sha }}
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          build-args: GIT_SHA=${{ github.sha }}
 
       - name: Verify multi-architecture image
         env:
@@ -90,24 +127,21 @@ jobs:
           ' <<<"${index}"
           printf 'index %s\n' "${DIGEST}"
 
+      - name: Promote verified image to latest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:latest" \
+            "${IMAGE}@${DIGEST}"
+
       - name: Deploy published image with Dokploy
-        if: vars.DOKPLOY_DEPLOY_ENABLED == 'true'
+        if: env.DEPLOY_ENABLED == 'true'
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
           DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
         run: |
-          missing=""
-          for name in DOKPLOY_API_KEY DOKPLOY_APPLICATION_ID DOKPLOY_URL; do
-            if [ -z "${!name}" ]; then
-              missing="${missing} ${name}"
-            fi
-          done
-          if [ -n "${missing}" ]; then
-            printf 'Missing required GitHub Actions secrets:%s\n' "${missing}" >&2
-            exit 1
-          fi
-
           short_sha="${GITHUB_SHA:0:7}"
           payload="$(jq -n \
             --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
@@ -115,12 +149,47 @@ jobs:
             --arg description "Published ${IMAGE}@${{ steps.build.outputs.digest }} from ${GITHUB_SHA}" \
             '{applicationId: $applicationId, title: $title, description: $description}')"
 
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "content-type: application/json" \
-            --header "x-api-key: ${DOKPLOY_API_KEY}" \
-            --data "${payload}" \
-            "${DOKPLOY_URL%/}/api/application.deploy"
+          curl --data-binary '@/dev/fd/3' --config - 3<<<"${payload}" <<EOF
+          fail-with-body
+          silent
+          show-error
+          connect-timeout = 10
+          max-time = 60
+          retry = 3
+          retry-all-errors
+          retry-connrefused
+          retry-delay = 5
+          retry-max-time = 180
+          request = "POST"
+          header = "content-type: application/json"
+          header = "x-api-key: ${DOKPLOY_API_KEY}"
+          url = "${DOKPLOY_URL%/}/api/application.deploy"
+          EOF
+
+      - name: Verify production converged to this commit
+        if: env.DEPLOY_ENABLED == 'true'
+        run: |
+          live_response=""
+          for attempt in $(seq 1 60); do
+            if live_response="$(curl --fail --silent --show-error \
+              --connect-timeout 5 \
+              --max-time 10 \
+              --header 'cache-control: no-cache' \
+              "https://tunnelcraft.org/api/health/ready?expected=${GITHUB_SHA}")"; then
+              live_commit="$(jq -r '.commit // ""' <<<"${live_response}" 2>/dev/null || true)"
+              if [ "${live_commit}" = "${GITHUB_SHA}" ]; then
+                printf 'Production is serving commit %s\n' "${GITHUB_SHA}"
+                exit 0
+              fi
+            fi
+
+            printf 'Attempt %d/60: production has not converged yet\n' "${attempt}"
+            sleep 10
+          done
+
+          printf 'Production did not converge to %s within 10 minutes. Last response: %s\n' \
+            "${GITHUB_SHA}" "${live_response}" >&2
+          exit 1
 
   capstone-labs:
     runs-on: [self-hosted, linux, x64]

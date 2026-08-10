@@ -26,6 +26,7 @@ import type { Progress } from "./progress";
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4000);
 const PROD = process.env.NODE_ENV === "production";
+const GIT_SHA = process.env.GIT_SHA || "unknown";
 
 let shuttingDown = false;
 const app = express();
@@ -292,7 +293,12 @@ app.get("/api/health/ready", (req, res) => {
   try {
     dbHealthy();
     if (shuttingDown) return res.status(503).json({ status: "draining" });
-    res.json({ status: "ok", db: "ok", uptimeSec: Math.round((Date.now() - startedAt) / 1000) });
+    res.json({
+      status: "ok",
+      db: "ok",
+      commit: GIT_SHA,
+      uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+    });
   } catch (e) {
     req.log.error({ err: errMsg(e) }, "readiness probe failed");
     res.status(503).json({ status: "unavailable", db: "error" });

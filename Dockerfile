@@ -13,7 +13,9 @@ RUN bun run --cwd client --bun build
 
 FROM oven/bun:1-alpine
 WORKDIR /app
-ENV NODE_ENV=production
+ARG GIT_SHA=unknown
+ENV NODE_ENV=production \
+    GIT_SHA=${GIT_SHA}
 COPY package.json bun.lock ./
 COPY client/package.json client/
 COPY server/package.json server/

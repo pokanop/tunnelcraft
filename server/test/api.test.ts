@@ -136,7 +136,13 @@ async function mintResetToken(email: string): Promise<string> {
 before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), "tunnelcraft-test-"));
   proc = spawn(process.execPath, [path.join(moduleDir, "..", "src", "index.ts")], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, LOG_LEVEL: "info" },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      DATA_DIR: dataDir,
+      LOG_LEVEL: "info",
+      GIT_SHA: "test-commit",
+    },
     stdio: ["ignore", "pipe", "ignore"],
   });
   proc.stdout?.on("data", (chunk: Buffer) => {
@@ -167,9 +173,10 @@ describe("health", () => {
     assert.equal(json.status, "ok");
   });
   test("readiness probes the DB", async () => {
-    const { status, json } = await api<{ db: string }>("GET", "/api/health/ready");
+    const { status, json } = await api<{ db: string; commit: string }>("GET", "/api/health/ready");
     assert.equal(status, 200);
     assert.equal(json.db, "ok");
+    assert.equal(json.commit, "test-commit");
   });
 });
 
