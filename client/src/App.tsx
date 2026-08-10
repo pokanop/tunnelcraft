@@ -75,7 +75,10 @@ export default function App() {
       window.location.hash.startsWith("#reset=") ||
       window.location.hash.startsWith("#oauth_error=")
     ) {
-      navigate({ to: "/auth" });
+      // hash: true preserves the fragment so AuthView can read the reset token
+      // (or oauth_error message) after the route change — without it, navigate
+      // drops the hash and the reset form never renders (POK-330).
+      navigate({ to: "/auth", hash: true, replace: true });
     }
     const local = loadLocal();
     setProg(local);

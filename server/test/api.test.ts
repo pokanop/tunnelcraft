@@ -15,6 +15,11 @@ const PORT = 4100 + Math.floor(Math.random() * 500);
 const BASE = `http://127.0.0.1:${PORT}`;
 let proc: ChildProcess | undefined;
 let dataDir = "";
+/* Captured server stdout so tests can recover one-time tokens from the dev
+   mail transport (which logs reset/verify links at info level). Production
+   redacts secrets, but the mail subsystem logs the full link by design — it's
+   the only black-box way to observe a hash-at-rest token. */
+let serverLog = "";
 
 /* Response shapes the assertions below reach into. */
 interface PublicUser {
@@ -59,11 +64,36 @@ async function api<T = unknown>(
   return { status: res.status, json: json as T };
 }
 
+/* Recover the most recent one-time token of a given kind from the captured
+   server log. The dev mail transport logs JSON lines like
+   {"sub":"mail","kind":"reset","link":".../#reset=TOKEN",...}. */
+function tokenFromLog(kind: "reset" | "verify"): string | null {
+  const lines = serverLog.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line || !line.includes(`"kind":"${kind}"`)) continue;
+    try {
+      const o = JSON.parse(line) as { link?: string };
+      if (typeof o.link === "string") {
+        const m = o.link.match(new RegExp(`#${kind}=([A-Za-z0-9_-]+)`));
+        const tok = m?.[1];
+        if (tok) return tok;
+      }
+    } catch {
+      /* not a JSON log line */
+    }
+  }
+  return null;
+}
+
 before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), "tunnelcraft-test-"));
   proc = spawn(process.execPath, [path.join(moduleDir, "..", "src", "index.ts")], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, LOG_LEVEL: "silent" },
-    stdio: "ignore",
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, LOG_LEVEL: "info" },
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  proc.stdout?.on("data", (chunk: Buffer) => {
+    serverLog += chunk.toString();
   });
   // Wait for readiness
   for (let i = 0; i < 50; i++) {
@@ -253,5 +283,92 @@ describe("account deletion", () => {
     });
     assert.equal(del.status, 200);
     assert.equal((await api("GET", "/api/me", { token })).status, 401);
+  });
+});
+
+describe("password reset flow", () => {
+  const email = "resetter@example.com";
+  const oldPassword = "a fine old password";
+  const newPassword = "a brand new password";
+  let firstToken: string;
+
+  test("register the account", async () => {
+    const { status } = await api("POST", "/api/auth/register", {
+      body: { email, password: oldPassword },
+    });
+    assert.equal(status, 201);
+  });
+
+  test("forgot-password is enumeration-safe", async () => {
+    const known = await api<{ message: string }>("POST", "/api/auth/forgot-password", {
+      body: { email },
+    });
+    const unknown = await api<{ message: string }>("POST", "/api/auth/forgot-password", {
+      body: { email: "nobody@example.com" },
+    });
+    assert.equal(known.status, 200);
+    assert.equal(known.json.message, unknown.json.message);
+  });
+
+  test("forgot-password mints a single-use reset token", async () => {
+    await api("POST", "/api/auth/forgot-password", { body: { email } });
+    // give the async dev transport a beat to flush the log line
+    for (let i = 0; i < 20; i++) {
+      firstToken = tokenFromLog("reset") ?? "";
+      if (firstToken) break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    assert.ok(firstToken, "reset token was logged by the dev mail transport");
+  });
+
+  test("reset-password rejects an unknown token", async () => {
+    const { status, json } = await api<{ error?: string }>("POST", "/api/auth/reset-password", {
+      body: { token: "not-a-real-token", newPassword },
+    });
+    assert.equal(status, 400);
+    assert.match(json.error ?? "", /invalid or expired/i);
+  });
+
+  test("reset-password rejects a too-short password", async () => {
+    const { status } = await api("POST", "/api/auth/reset-password", {
+      body: { token: firstToken, newPassword: "short" },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("reset-password with the real token sets the new password and revokes sessions", async () => {
+    // establish a session that should be revoked by the reset
+    const sess = await api<AuthResponse>("POST", "/api/auth/login", {
+      body: { email, password: oldPassword },
+    });
+    assert.equal(sess.status, 200);
+
+    const reset = await api("POST", "/api/auth/reset-password", {
+      body: { token: firstToken, newPassword },
+    });
+    assert.equal(reset.status, 200);
+
+    // the pre-reset session is dead
+    assert.equal((await api("GET", "/api/me", { token: sess.json.token })).status, 401);
+    // the old password no longer works
+    assert.equal(
+      (await api("POST", "/api/auth/login", { body: { email, password: oldPassword } })).status,
+      401
+    );
+  });
+
+  test("the token is single-use — a second consume fails", async () => {
+    const { status } = await api("POST", "/api/auth/reset-password", {
+      body: { token: firstToken, newPassword: "yet another password" },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("the new password signs in and the account is now email-verified", async () => {
+    const { status, json } = await api<AuthResponse>("POST", "/api/auth/login", {
+      body: { email, password: newPassword },
+    });
+    assert.equal(status, 200);
+    assert.equal(json.user.emailVerified, true);
   });
 });
