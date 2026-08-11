@@ -63,12 +63,22 @@ for (const { label, url } of [
   { label: "missing", url: "/reset-password" },
   { label: "malformed", url: "/reset-password#reset=not+a+base64url+token" },
 ]) {
+  test(`${label} reset tokens send a signed-out visitor to sign in`, async ({ page }) => {
+    await page.goto(url);
+    await expect(page.getByText(/reset link is invalid or expired/i)).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await page.getByRole("button", { name: "GO TO SIGN IN" }).click();
+
+    await expect(page).toHaveURL(/\/auth$/);
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  });
+
   test(`${label} reset tokens do not clear an existing session`, async ({ page }) => {
     await seedStoredSession(page);
     await page.goto(url);
     await expect(page.getByText(/reset link is invalid or expired/i)).toBeVisible();
     await expect(page.locator('input[type="password"]')).toHaveCount(0);
-    await page.getByRole("button", { name: "GO TO SIGN IN" }).click();
+    await page.getByRole("button", { name: "BACK TO DASHBOARD" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("button", { name: "SIGNED-IN@EXAMPLE.COM" })).toBeVisible();
