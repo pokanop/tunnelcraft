@@ -34,7 +34,7 @@ function AuthPage() {
 }
 
 function ResetPasswordPage() {
-  const { go, clearSession } = useApp();
+  const { go, clearSession, user } = useApp();
   const [resetToken] = useState(() =>
     typeof window === "undefined" ? null : resetTokenFromHash(window.location.hash)
   );
@@ -49,7 +49,9 @@ function ResetPasswordPage() {
     <ResetPasswordView
       token={resetToken}
       onBack={() => go({ v: "home" })}
-      onDone={() => {
+      onInvalidLink={() => go({ v: "auth" })}
+      invalidLinkLabel={user ? "BACK TO DASHBOARD" : "GO TO SIGN IN"}
+      onResetComplete={() => {
         clearSession();
         go({ v: "auth" });
       }}

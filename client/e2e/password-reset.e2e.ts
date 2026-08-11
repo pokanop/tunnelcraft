@@ -59,10 +59,56 @@ test("reset links tolerate trailing fragment parameters", async ({ page }) => {
   await expect.poll(() => submittedToken).toBe(resetToken);
 });
 
-test("a reset page without a token rejects the link before password entry", async ({ page }) => {
-  await page.goto("/reset-password");
+for (const { label, url } of [
+  { label: "missing", url: "/reset-password" },
+  { label: "malformed", url: "/reset-password#reset=not+a+base64url+token" },
+]) {
+  test(`${label} reset tokens send a signed-out visitor to sign in`, async ({ page }) => {
+    await page.goto(url);
+    await expect(page.getByText(/reset link is invalid or expired/i)).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await page.getByRole("button", { name: "GO TO SIGN IN" }).click();
+
+    await expect(page).toHaveURL(/\/auth$/);
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  });
+
+  test(`${label} reset tokens do not clear an existing session`, async ({ page }) => {
+    await seedStoredSession(page);
+    await page.goto(url);
+    await expect(page.getByText(/reset link is invalid or expired/i)).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await page.getByRole("button", { name: "BACK TO DASHBOARD" }).click();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("button", { name: "SIGNED-IN@EXAMPLE.COM" })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("tunnelcraft:token")))
+      .toBe("existing-session-token");
+  });
+}
+
+test("an expired reset token does not clear an existing session", async ({ page }) => {
+  await seedStoredSession(page);
+  await page.route("**/api/auth/reset-password", async (route) => {
+    await route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Reset link is invalid or expired — request a new one" }),
+    });
+  });
+
+  await page.goto(`/reset-password#reset=${resetToken}`);
+  await page.locator('input[type="password"]').fill("new browser password");
+  await page.getByRole("button", { name: "SET NEW PASSWORD" }).click();
   await expect(page.getByText(/reset link is invalid or expired/i)).toBeVisible();
-  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await page.goto("/dashboard");
+
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole("button", { name: "SIGNED-IN@EXAMPLE.COM" })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("tunnelcraft:token")))
+    .toBe("existing-session-token");
 });
 
 test("successful reset clears the client session before navigating to sign in", async ({

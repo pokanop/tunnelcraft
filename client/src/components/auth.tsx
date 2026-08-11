@@ -168,11 +168,19 @@ export function AuthView({ onAuthed, onBack }: AuthViewProps) {
 interface ResetPasswordViewProps {
   token: string | null;
   onBack: () => void;
-  onDone: () => void;
+  onResetComplete: () => void;
+  onInvalidLink: () => void;
+  invalidLinkLabel: string;
 }
 
 /** Dedicated reset screen: email links never fall through to sign-in UI. */
-export function ResetPasswordView({ token, onBack, onDone }: ResetPasswordViewProps) {
+export function ResetPasswordView({
+  token,
+  onBack,
+  onResetComplete,
+  onInvalidLink,
+  invalidLinkLabel,
+}: ResetPasswordViewProps) {
   return (
     <div className="wrap">
       <button className="back" onClick={onBack}>
@@ -182,14 +190,14 @@ export function ResetPasswordView({ token, onBack, onDone }: ResetPasswordViewPr
         <div className="eyebrow">PASSWORD RESET</div>
         <h2 className="authttl">Set a new password</h2>
         {token ? (
-          <ResetForm token={token} onDone={onDone} />
+          <ResetForm token={token} onDone={onResetComplete} />
         ) : (
           <>
             <div className="verdict badv" role="alert">
               ✗ Reset link is invalid or expired — request a new one
             </div>
-            <button className="btn" onClick={onDone}>
-              GO TO SIGN IN
+            <button className="btn" onClick={onInvalidLink}>
+              {invalidLinkLabel}
             </button>
           </>
         )}
