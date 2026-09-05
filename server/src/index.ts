@@ -1,3 +1,5 @@
+import { startTunnelcraftTelemetry, type TelemetryLifecycle } from "./telemetry";
+import { version } from "../package.json";
 import express from "express";
 import type { Request, RequestHandler } from "express";
 import cors from "cors";
@@ -534,7 +536,9 @@ if (fs.existsSync(dist)) {
   app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
+let telemetry: TelemetryLifecycle | undefined;
 const server = app.listen(PORT, () => {
+  telemetry = startTunnelcraftTelemetry({ release: process.env.POKANOP_RELEASE || version });
   log.info(
     {
       port: PORT,
@@ -568,7 +572,9 @@ function shutdown(signal: string): void {
   }, SHUTDOWN_TIMEOUT_MS);
   deadline.unref();
 
-  server.close((err) => {
+  const telemetryClosed = telemetry?.close();
+  server.close(async (err) => {
+    await telemetryClosed;
     if (err) log.error({ err: err.message }, "shutdown: server close error");
     else log.info("shutdown: http drained");
     try {
