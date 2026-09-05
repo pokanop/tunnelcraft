@@ -42,7 +42,7 @@ bodies, DICOM metadata, or protected health information.
 
 The client recursively rejects obvious PII keys as a secondary guardrail. That denylist cannot make
 arbitrary payloads safe; the Tunnelcraft integration therefore constructs its closed payload shapes in
-`apps/server/src/telemetry.ts`, where request and health-record data are unavailable.
+`server/src/telemetry.ts`, where request and health-record data are unavailable.
 
 ## Provenance and resync
 

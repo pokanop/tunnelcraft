@@ -3,6 +3,7 @@ import { createTelemetry, type SubmissionResult, type TelemetryClient } from "@p
 
 const POKANOP_API_URL = "https://pokanop.com/api/v1";
 const TELEMETRY_SOURCE = "tunnelcraft-server";
+export const SHUTDOWN_FLUSH_TIMEOUT_MS = 2_000;
 export const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
 interface IntervalHandle {
@@ -95,10 +96,23 @@ export function startTunnelcraftTelemetry(options: TelemetryLifecycleOptions): T
     close() {
       closePromise ??= (async () => {
         clearSchedule(heartbeatInterval);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<"timed-out">((resolve) => {
+          // Keep the process alive long enough to finish DB shutdown after this bound.
+          timer = setTimeout(() => resolve("timed-out"), SHUTDOWN_FLUSH_TIMEOUT_MS);
+        });
         try {
-          await client.close();
+          const outcome = await Promise.race([
+            client.close().then(() => "closed" as const),
+            timeout,
+          ]);
+          if (outcome === "timed-out") {
+            logFailure("close", new Error(`flush exceeded ${SHUTDOWN_FLUSH_TIMEOUT_MS}ms`));
+          }
         } catch (error) {
           logFailure("close", error);
+        } finally {
+          if (timer !== undefined) clearTimeout(timer);
         }
       })();
       return closePromise;

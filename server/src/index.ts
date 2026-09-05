@@ -538,7 +538,13 @@ if (fs.existsSync(dist)) {
 
 let telemetry: TelemetryLifecycle | undefined;
 const server = app.listen(PORT, () => {
-  telemetry = startTunnelcraftTelemetry({ release: process.env.POKANOP_RELEASE || version });
+  if (!shuttingDown) {
+    try {
+      telemetry = startTunnelcraftTelemetry({ release: process.env.POKANOP_RELEASE || version });
+    } catch (e) {
+      log.warn({ err: errMsg(e) }, "telemetry: startup failed, reporting disabled");
+    }
+  }
   log.info(
     {
       port: PORT,

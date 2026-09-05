@@ -209,7 +209,7 @@ Register client **tunnelcraft** (kind **product**) in
 `ingest:heartbeats` + `ingest:events`, and set `POKANOP_TOKEN` in the production
 server environment (or the uncommitted Compose `.env`). Never commit or paste
 the token. Set `POKANOP_RELEASE` to the deployed release/commit; it defaults to
-the server package version. Compose forwards all three telemetry variables.
+the server package version (currently static, so set it for every production deploy). Compose forwards all three telemetry variables.
 
 Restart/recreate the server after configuration. Confirm the
 `Pokanop telemetry heartbeat accepted` and/or `Pokanop telemetry event accepted`
@@ -217,5 +217,7 @@ JSON log lines with `accepted` and `duplicates` counts, and share those lines
 as deployment evidence. These are emitted after successful ingestion responses.
 With no token the integration does no work; `POKANOP_TELEMETRY=off` disables it
 even when a token exists. SIGTERM/SIGINT stop the heartbeat timer and flush
-queued telemetry alongside HTTP draining, within the existing
-`SHUTDOWN_TIMEOUT_MS` deadline (default 10 seconds).
+queued telemetry alongside HTTP draining, with a two-second best-effort flush limit.
+An ingestion outage is logged and does not force a failed shutdown. The existing
+`SHUTDOWN_TIMEOUT_MS` deadline (default 10 seconds) still bounds the overall drain;
+keep it above the telemetry flush limit to allow time for DB cleanup.
