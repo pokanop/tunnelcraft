@@ -195,3 +195,29 @@ If this project helped you, consider supporting its development:
 <a href="https://github.com/sponsors/pokanop" target="_blank"><img src="https://img.shields.io/badge/GitHub%20Sponsors-ea4aaa?style=for-the-badge&logo=github" alt="GitHub Sponsors" height="28"></a>
 <a href="https://ko-fi.com/pokanop" target="_blank"><img src="https://img.shields.io/badge/Ko--fi-Support%20Me-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi" height="28"></a>
 <a href="https://www.buymeacoffee.com/pokanopapps" target="_blank"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" height="28"></a>
+
+### Production telemetry
+
+The server uses the vendored, dependency-free `@pokanop/telemetry` v0.1.0
+client from Doctopus PR #70 (commit b55160564e444400ecf58b3d5f8e7a83a1999e44).
+It sends a boot heartbeat, a heartbeat every five minutes, and a
+`server.started` event to `https://pokanop.com/api/v1`. Payloads contain only
+service state and release version; no account, session, or request data.
+
+Register client **tunnelcraft** (kind **product**) in
+**Admin → Integrations → Orchestration**, issue a token scoped
+`ingest:heartbeats` + `ingest:events`, and set `POKANOP_TOKEN` in the production
+server environment (or the uncommitted Compose `.env`). Never commit or paste
+the token. Set `POKANOP_RELEASE` to the deployed release/commit; it defaults to
+the server package version (currently static, so set it for every production deploy). Compose forwards all three telemetry variables.
+
+Restart/recreate the server after configuration. Confirm the
+`Pokanop telemetry heartbeat accepted` and/or `Pokanop telemetry event accepted`
+JSON log lines with `accepted` and `duplicates` counts, and share those lines
+as deployment evidence. These are emitted after successful ingestion responses.
+With no token the integration does no work; `POKANOP_TELEMETRY=off` disables it
+even when a token exists. SIGTERM/SIGINT stop the heartbeat timer and flush
+queued telemetry alongside HTTP draining, with a two-second best-effort flush limit.
+An ingestion outage is logged and does not force a failed shutdown. The existing
+`SHUTDOWN_TIMEOUT_MS` deadline (default 10 seconds) still bounds the overall drain;
+keep it above the telemetry flush limit to allow time for DB cleanup.

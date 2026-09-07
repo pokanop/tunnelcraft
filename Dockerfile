@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY client/package.json client/
 COPY server/package.json server/
+COPY packages/telemetry/package.json packages/telemetry/
 RUN bun install --frozen-lockfile
 COPY tsconfig.base.json ./
 COPY client client
@@ -17,8 +18,10 @@ ENV NODE_ENV=production
 COPY package.json bun.lock ./
 COPY client/package.json client/
 COPY server/package.json server/
+COPY packages/telemetry/package.json packages/telemetry/
 RUN bun install --frozen-lockfile --production
 COPY server server
+COPY packages/telemetry packages/telemetry
 COPY --from=build /app/client/dist client/dist
 EXPOSE 4000
 VOLUME /app/server/data

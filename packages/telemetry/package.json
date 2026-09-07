@@ -1,0 +1,22 @@
+{
+  "name": "@pokanop/telemetry",
+  "version": "0.1.0",
+  "description": "Vendored Pokanop telemetry ingestion client",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14"
+  }
+}

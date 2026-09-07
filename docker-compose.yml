@@ -5,6 +5,10 @@ services:
       - "4000:4000"
     volumes:
       - tunnelcraft-data:/app/server/data
+    environment:
+      POKANOP_TOKEN: ${POKANOP_TOKEN:-}
+      POKANOP_TELEMETRY: ${POKANOP_TELEMETRY:-}
+      POKANOP_RELEASE: ${POKANOP_RELEASE:-}
     restart: unless-stopped
 
 volumes:
