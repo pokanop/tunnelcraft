@@ -95,6 +95,10 @@ Or with Docker:
 docker compose up --build
 ```
 
+Production uses the pre-built multi-architecture GHCR image and an automated
+Dokploy rollout. See the [production deployment runbook](docs/operations/deployments.md)
+for setup, verification, manual rollout, and rollback procedures.
+
 ## API
 
 | Method | Path                                 | Body                              | Notes                                                                                                      |
